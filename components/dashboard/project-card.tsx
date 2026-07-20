@@ -63,7 +63,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
           <div className="flex flex-col gap-1.5">
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>
-                Stage {project.currentStage} / {TOTAL_STAGE_COUNT} —{" "}
+                Tahap {project.currentStage} / {TOTAL_STAGE_COUNT} —{" "}
                 {project.currentStageLabel}
               </span>
               <span>
@@ -101,7 +101,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
                   : "text-muted-foreground"
               )}
             >
-              Waiting since {project.maxWaitingDays} hari
+              Delay {project.maxWaitingDays} hari
             </p>
           )}
         </CardContent>

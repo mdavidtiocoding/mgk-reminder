@@ -374,7 +374,7 @@ export const TOTAL_STEP_COUNT = STEPS.length
 
 export const DIVISION_LABELS: Record<Division, string> = {
   marketing: "Marketing",
-  ar: "Finance AR",
+  ar: "AR",
   logistik: "Logistik",
   finance: "Finance",
   shipping: "Shipping",

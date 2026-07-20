@@ -5,8 +5,14 @@ import { revalidatePath } from "next/cache"
 import { clearCalendarRemindersForStep, createStepUnlockCalendarEvents } from "@/lib/google/calendar"
 import { dateToDateKeyWib } from "@/lib/format"
 import { notifyDivisionForStep } from "@/lib/notifications/send"
-import { computeProjectSteps, getActiveComputedSteps } from "@/lib/projects/active-steps"
-import { getStep, type DateField } from "@/lib/steps"
+import {
+  buildDoneCodes,
+  computeProjectSteps,
+  getActiveComputedSteps,
+  isStepActiveForFlow,
+} from "@/lib/projects/active-steps"
+import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
+import type { DateField } from "@/lib/steps"
 import { createClient } from "@/lib/supabase/server"
 
 export type CompleteStepResult =
@@ -43,9 +49,17 @@ export async function completeStep(
     .eq("id", user.id)
     .single()
 
-  const step = getStep(stepCode)
+  const runtimeSteps = await loadRuntimeSteps(supabase)
+  const step = runtimeSteps.find((s) => s.code === stepCode)
   if (!step) {
     return { success: false, error: "Step tidak dikenali." }
+  }
+
+  if (step.substeps.length > 0) {
+    return {
+      success: false,
+      error: "Step ini memakai sub-step. Gunakan tombol sub-step di timeline.",
+    }
   }
 
   if (profile?.division !== "admin" && profile?.division !== step.division) {
@@ -66,19 +80,36 @@ export async function completeStep(
     return { success: false, error: "Project tidak aktif." }
   }
 
-  const { data: completionRows } = await supabase
-    .from("step_completions")
-    .select("step_code, completed_at")
-    .eq("project_id", projectId)
+  const [{ data: completionRows }, { data: substepRows }] = await Promise.all([
+    supabase
+      .from("step_completions")
+      .select("step_code, completed_at")
+      .eq("project_id", projectId),
+    supabase
+      .from("step_substep_completions")
+      .select("step_code, substep_key, completed_at")
+      .eq("project_id", projectId),
+  ])
 
-  const doneCodes = new Set((completionRows ?? []).map((row) => row.step_code as string))
+  const completions = (completionRows ?? []).map((row) => ({
+    stepCode: row.step_code as string,
+    completedAt: row.completed_at as string,
+  }))
+
+  const substepCompletions = (substepRows ?? []).map((row) => ({
+    stepCode: row.step_code as string,
+    substepKey: row.substep_key as string,
+    completedAt: row.completed_at as string,
+  }))
+
+  const doneCodes = buildDoneCodes(completions, substepCompletions, runtimeSteps)
 
   if (doneCodes.has(stepCode)) {
     return { success: false, error: "Step ini sudah selesai." }
   }
 
-  const missingPrereqs = step.prerequisites.filter((code) => !doneCodes.has(code))
-  if (missingPrereqs.length > 0) {
+  if (!isStepActiveForFlow(step, doneCodes)) {
+    const missingPrereqs = step.prerequisites.filter((code) => !doneCodes.has(code))
     return {
       success: false,
       error: `Step ini belum aktif. Prasyarat belum selesai: ${missingPrereqs.join(", ")}.`,
@@ -100,13 +131,32 @@ export async function completeStep(
     if (options.outcome !== "ok" && options.outcome !== "reschedule") {
       return { success: false, error: "Pilih hasil survey terlebih dahulu." }
     }
-    outcome = options.outcome
+
     if (options.outcome === "reschedule") {
       if (!options.rescheduleDate || !DATE_PATTERN.test(options.rescheduleDate)) {
         return { success: false, error: "Tanggal reschedule tidak valid." }
       }
       projectUpdates.ex_work_date = options.rescheduleDate
+
+      if (Object.keys(projectUpdates).length > 0) {
+        const { error: updateError } = await supabase
+          .from("projects")
+          .update(projectUpdates)
+          .eq("id", projectId)
+
+        if (updateError) {
+          return { success: false, error: updateError.message }
+        }
+      }
+
+      revalidatePath(`/projects/${projectId}`)
+      revalidatePath("/")
+      revalidatePath("/tasks")
+
+      return { success: true }
     }
+
+    outcome = options.outcome
   }
 
   if (step.dateInputs && step.dateInputs.length > 0) {
@@ -130,6 +180,22 @@ export async function completeStep(
     }
   }
 
+  const projectDates = {
+    createdAt: project.created_at,
+    ex_work_date: projectUpdates.ex_work_date ?? project.ex_work_date,
+    etd_date: projectUpdates.etd_date ?? project.etd_date,
+    eta_date: projectUpdates.eta_date ?? project.eta_date,
+    mos_date: projectUpdates.mos_date ?? project.mos_date,
+  }
+
+  const beforeSteps = computeProjectSteps(completions, projectDates, {
+    steps: runtimeSteps,
+    substepCompletions,
+  })
+  const previouslyActiveCodes = new Set(
+    getActiveComputedSteps(beforeSteps).map((s) => s.definition.code)
+  )
+
   const { error } = await supabase.from("step_completions").insert({
     project_id: projectId,
     step_code: stepCode,
@@ -142,46 +208,20 @@ export async function completeStep(
     return { success: false, error: error.message }
   }
 
-  // Keep the Google Calendar event, but stop popup/alarm reminders for this step.
   await clearCalendarRemindersForStep({ projectId, stepCode })
 
-  const beforeSteps = computeProjectSteps(
-    (completionRows ?? []).map((row) => ({
-      stepCode: row.step_code as string,
-      completedAt: row.completed_at as string,
-    })),
-    {
-      createdAt: project.created_at,
-      ex_work_date: project.ex_work_date,
-      etd_date: project.etd_date,
-      eta_date: project.eta_date,
-      mos_date: project.mos_date,
-    }
-  )
-  const previouslyActiveCodes = new Set(
-    getActiveComputedSteps(beforeSteps).map((s) => s.definition.code)
-  )
-
   const afterCompletions = [
-    ...(completionRows ?? []).map((row) => ({
-      stepCode: row.step_code as string,
-      completedAt: row.completed_at as string,
-    })),
+    ...completions,
     { stepCode, completedAt: new Date().toISOString() },
   ]
-  const afterSteps = computeProjectSteps(afterCompletions, {
-    createdAt: project.created_at,
-    ex_work_date: projectUpdates.ex_work_date ?? project.ex_work_date,
-    etd_date: projectUpdates.etd_date ?? project.etd_date,
-    eta_date: projectUpdates.eta_date ?? project.eta_date,
-    mos_date: projectUpdates.mos_date ?? project.mos_date,
+  const afterSteps = computeProjectSteps(afterCompletions, projectDates, {
+    steps: runtimeSteps,
+    substepCompletions,
   })
   const newlyActive = getActiveComputedSteps(afterSteps).filter(
     (s) => !previouslyActiveCodes.has(s.definition.code)
   )
 
-  // Fire notifications immediately when a step is newly unlocked.
-  // This covers email + push (step_unlock) and Google Calendar.
   for (const activeStep of newlyActive) {
     await notifyDivisionForStep({
       projectId,

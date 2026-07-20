@@ -14,6 +14,7 @@ type DashboardPageProps = {
     stage?: string
     division?: string
     sort?: string
+    q?: string
   }>
 }
 
@@ -35,11 +36,14 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   const filters = await searchParams
   let projects: DashboardProject[] = []
+  let loadError: string | null = null
 
   try {
     projects = await getDashboardProjects(supabase, filters)
-  } catch {
-    projects = []
+  } catch (error) {
+    loadError =
+      error instanceof Error ? error.message : "Gagal memuat daftar project."
+    console.error("getDashboardProjects:", error)
   }
 
   return (
@@ -63,7 +67,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </Suspense>
         </div>
 
-        <DashboardProjectList projects={projects} />
+        <DashboardProjectList projects={projects} loadError={loadError} />
       </main>
     </div>
   )

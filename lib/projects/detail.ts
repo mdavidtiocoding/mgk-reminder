@@ -11,6 +11,9 @@ import {
   TOTAL_STAGE_COUNT,
   TOTAL_STEP_COUNT,
 } from "@/lib/steps"
+import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
+import type { SubstepCompletion, SubstepDefinition } from "@/lib/steps/substeps"
+import { loadSubstepCompletionsForProject } from "@/lib/projects/substep-data"
 
 type CompletionRow = {
   step_code: string
@@ -70,6 +73,8 @@ export type StepTimelineItem = {
   checklist?: string[]
   dateInputs?: DateInputField[]
   hasOutcome?: boolean
+  substeps: SubstepDefinition[]
+  substepCompletions: SubstepCompletion[]
   canComplete: boolean
 }
 
@@ -111,7 +116,9 @@ export async function getProjectDetail(
   projectId: string,
   userDivision?: Division | null
 ): Promise<ProjectDetail | null> {
-  const [{ data, error }, { data: stepDefRows }] = await Promise.all([
+  const [runtimeSteps, substepCompletions, { data, error }] = await Promise.all([
+    loadRuntimeSteps(supabase),
+    loadSubstepCompletionsForProject(supabase, projectId),
     supabase
       .from("projects")
       .select(
@@ -139,17 +146,9 @@ export async function getProjectDetail(
       )
       .eq("id", projectId)
       .single(),
-    // Step names are admin-editable in Settings → Reminder Config; the
-    // rest of the step metadata (division, stage, prerequisites, trigger)
-    // still comes from the static lib/steps.ts flow definition.
-    supabase.from("step_definitions").select("code, name"),
   ])
 
   if (error || !data) return null
-
-  const stepNameByCode = new Map(
-    (stepDefRows ?? []).map((row) => [row.code, row.name as string])
-  )
 
   const project = data as ProjectDetailRow
 
@@ -184,23 +183,29 @@ export async function getProjectDetail(
     etd_date: project.etd_date,
     eta_date: project.eta_date,
     mos_date: project.mos_date,
+  }, {
+    steps: runtimeSteps,
+    substepCompletions,
   })
 
   const steps: StepTimelineItem[] = computedSteps.map((computed) => {
     const step = computed.definition
     const completion = completionByCode.get(step.code)
     const followUp = followUpByStep.get(step.code)
+    const stepSubstepCompletions = substepCompletions.filter(
+      (c) => c.stepCode === step.code
+    )
 
     return {
       code: step.code,
       order: step.order,
-      name: stepNameByCode.get(step.code) ?? step.name,
+      name: step.name,
       division: step.division,
       divisionLabel: getDivisionLabel(step.division),
       stage: step.stage,
       status: computed.status,
       prerequisites: step.prerequisites,
-      completedAt: completion?.completed_at,
+      completedAt: completion?.completed_at ?? computed.completion?.completedAt,
       completedByName: normalizeRelation(completion?.profile ?? null)?.name,
       note: completion?.note,
       outcome: completion?.outcome,
@@ -212,6 +217,8 @@ export async function getProjectDetail(
       checklist: step.checklist,
       dateInputs: step.dateInputs,
       hasOutcome: step.hasOutcome,
+      substeps: step.substeps,
+      substepCompletions: stepSubstepCompletions,
       canComplete:
         computed.status === "active" &&
         project.status === "active" &&

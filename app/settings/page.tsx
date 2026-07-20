@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { GitBranch } from "lucide-react"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
@@ -145,6 +146,24 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
               <CardContent>
                 <Button size="sm" asChild>
                   <Link href="/settings/reminders">Kelola Reminder</Link>
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <GitBranch className="size-4" />
+                  Konfigurasi Flow Step
+                </CardTitle>
+                <CardDescription>
+                  Atur prasyarat (prerequisites) setiap step — step apa yang
+                  harus selesai sebelum step ini bisa aktif.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button size="sm" asChild>
+                  <Link href="/settings/flow">Kelola Flow</Link>
                 </Button>
               </CardContent>
             </Card>

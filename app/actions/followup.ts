@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import { todayDateKeyWib } from "@/lib/format"
 import { createFollowUpCalendarEvents } from "@/lib/google/calendar"
 import { computeProjectSteps } from "@/lib/projects/active-steps"
-import { getStep } from "@/lib/steps"
+import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
 import { createClient } from "@/lib/supabase/server"
 
 export type FollowUpActionResult =
@@ -30,7 +30,8 @@ export async function setFollowUp(
     return { success: false, error: "Silakan login terlebih dahulu." }
   }
 
-  const step = getStep(stepCode)
+  const runtimeSteps = await loadRuntimeSteps(supabase)
+  const step = runtimeSteps.find((s) => s.code === stepCode)
   if (!step) {
     return { success: false, error: "Step tidak dikenali." }
   }
@@ -73,10 +74,16 @@ export async function setFollowUp(
     return { success: false, error: "Project tidak aktif." }
   }
 
-  const { data: completionRows } = await supabase
-    .from("step_completions")
-    .select("step_code, completed_at")
-    .eq("project_id", projectId)
+  const [{ data: completionRows }, { data: substepRows }] = await Promise.all([
+    supabase
+      .from("step_completions")
+      .select("step_code, completed_at")
+      .eq("project_id", projectId),
+    supabase
+      .from("step_substep_completions")
+      .select("step_code, substep_key, completed_at")
+      .eq("project_id", projectId),
+  ])
 
   const computedSteps = computeProjectSteps(
     (completionRows ?? []).map((row) => ({
@@ -89,6 +96,14 @@ export async function setFollowUp(
       etd_date: project.etd_date,
       eta_date: project.eta_date,
       mos_date: project.mos_date,
+    },
+    {
+      steps: runtimeSteps,
+      substepCompletions: (substepRows ?? []).map((row) => ({
+        stepCode: row.step_code as string,
+        substepKey: row.substep_key as string,
+        completedAt: row.completed_at as string,
+      })),
     }
   )
   const isActive = computedSteps.some(

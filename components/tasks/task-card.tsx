@@ -18,6 +18,8 @@ type TaskCardProps = {
 }
 
 export function TaskCard({ task }: TaskCardProps) {
+  const hasSubsteps = task.substeps.length > 0
+
   return (
     <Card>
       <CardHeader>
@@ -49,18 +51,31 @@ export function TaskCard({ task }: TaskCardProps) {
               : "text-muted-foreground"
           )}
         >
-          Waiting since {task.waitingDays} hari
+          Delay {task.waitingDays} hari
         </p>
+        {hasSubsteps && task.nextSubstepLabel && (
+          <p className="text-xs text-muted-foreground">
+            Sub-step berikutnya:{" "}
+            <span className="text-foreground">{task.nextSubstepLabel}</span>
+            {" · "}
+            tindakan di halaman detail project
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
-          {task.canComplete && (
+          {!hasSubsteps && task.canComplete && (
             <MarkDoneDialog
               projectId={task.projectId}
               stepCode={task.stepCode}
               stepName={task.stepName}
+              checklist={task.checklist}
+              dateInputs={task.dateInputs}
+              hasOutcome={task.hasOutcome}
             />
           )}
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/projects/${task.projectId}`}>Detail</Link>
+          <Button variant={hasSubsteps ? "default" : "outline"} size="sm" asChild>
+            <Link href={`/projects/${task.projectId}`}>
+              {hasSubsteps ? "Buka & selesaikan" : "Detail"}
+            </Link>
           </Button>
         </div>
       </CardContent>

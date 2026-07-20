@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 import {
@@ -9,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { UrlSearchInput } from "@/components/search/url-search-input"
 import { DIVISION_LABELS, STAGE_LABELS, type Division } from "@/lib/steps"
 
 const STATUS_OPTIONS = [
@@ -21,7 +23,7 @@ const STATUS_OPTIONS = [
 const SORT_OPTIONS = [
   { value: "newest", label: "Terbaru" },
   { value: "stuck", label: "Paling lama nunggu" },
-  { value: "stage", label: "Stage" },
+  { value: "stage", label: "Tahap" },
 ] as const
 
 export function DashboardFilters() {
@@ -44,7 +46,11 @@ export function DashboardFilters() {
   }
 
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className="flex flex-wrap items-center gap-3">
+      <Suspense fallback={null}>
+        <UrlSearchInput placeholder="Cari project, customer, step…" />
+      </Suspense>
+
       <Select
         value={searchParams.get("status") ?? "active"}
         onValueChange={(value) => updateParam("status", value)}
@@ -66,13 +72,13 @@ export function DashboardFilters() {
         onValueChange={(value) => updateParam("stage", value)}
       >
         <SelectTrigger className="w-[200px]" size="sm">
-          <SelectValue placeholder="Stage" />
+          <SelectValue placeholder="Tahap" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Semua stage</SelectItem>
+          <SelectItem value="all">Semua tahap</SelectItem>
           {Object.entries(STAGE_LABELS).map(([stage, label]) => (
             <SelectItem key={stage} value={stage}>
-              Stage {stage}: {label}
+              Tahap {stage}: {label}
             </SelectItem>
           ))}
         </SelectContent>
@@ -86,7 +92,7 @@ export function DashboardFilters() {
           <SelectValue placeholder="Division" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Semua division</SelectItem>
+          <SelectItem value="all">Semua divisi</SelectItem>
           {(Object.entries(DIVISION_LABELS) as [Division, string][])
             .filter(([division]) => division !== "admin")
             .map(([division, label]) => (

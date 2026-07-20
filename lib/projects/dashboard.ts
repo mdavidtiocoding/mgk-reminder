@@ -7,6 +7,7 @@ import {
   getActiveComputedSteps,
   type CompletionInfo,
 } from "@/lib/projects/active-steps"
+import { buildProjectSearchHaystack, matchesTokenSearch } from "@/lib/search/match"
 import {
   type Division,
   getDivisionLabel,
@@ -15,11 +16,15 @@ import {
   TOTAL_STAGE_COUNT,
   TOTAL_STEP_COUNT,
 } from "@/lib/steps"
+import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
+import type { SubstepCompletion } from "@/lib/steps/substeps"
+import { loadSubstepCompletionsMap } from "@/lib/projects/substep-data"
 
 type StepCompletionRow = {
   step_code: string
   completed_at: string
 }
+
 
 type ProjectRow = {
   id: string
@@ -75,6 +80,7 @@ export type DashboardFilters = {
   stage?: string
   division?: string
   sort?: string
+  q?: string
 }
 
 function daysSince(date: Date): number {
@@ -84,7 +90,9 @@ function daysSince(date: Date): number {
 function enrichProject(
   project: ProjectRow,
   hoggerDays: number,
-  warningDays: number
+  warningDays: number,
+  runtimeSteps: Awaited<ReturnType<typeof loadRuntimeSteps>>,
+  substepCompletions: SubstepCompletion[] = []
 ): DashboardProject {
   const completions: CompletionInfo[] = (project.step_completions ?? []).map((c) => ({
     stepCode: c.step_code,
@@ -97,6 +105,9 @@ function enrichProject(
     etd_date: project.etd_date,
     eta_date: project.eta_date,
     mos_date: project.mos_date,
+  }, {
+    steps: runtimeSteps,
+    substepCompletions,
   })
 
   const doneCount = computedSteps.filter((s) => s.status === "done").length
@@ -173,6 +184,27 @@ function filterProjects(
     )
   }
 
+  if (filters.q?.trim()) {
+    result = result.filter((project) =>
+      matchesTokenSearch(
+        buildProjectSearchHaystack([
+          project.name,
+          project.customerName,
+          project.currentStageLabel,
+          String(project.currentStage),
+          project.status,
+          ...project.activeSteps.flatMap((s) => [
+            s.code,
+            s.name,
+            s.divisionLabel,
+            s.division,
+          ]),
+        ]),
+        filters.q!
+      )
+    )
+  }
+
   return result
 }
 
@@ -200,7 +232,7 @@ export async function getDashboardProjects(
   supabase: SupabaseClient,
   filters: DashboardFilters = {}
 ): Promise<DashboardProject[]> {
-  const [{ data, error }, thresholds] = await Promise.all([
+  const [{ data, error }, thresholds, runtimeSteps] = await Promise.all([
     supabase
       .from("projects")
       .select(
@@ -218,14 +250,27 @@ export async function getDashboardProjects(
     `
       ),
     getAppThresholds(supabase),
+    loadRuntimeSteps(supabase),
   ])
 
   if (error) {
     throw new Error(error.message)
   }
 
-  const enriched = ((data ?? []) as ProjectRow[]).map((project) =>
-    enrichProject(project, thresholds.hoggerDays, thresholds.warningDays)
+  const projectRows = (data ?? []) as ProjectRow[]
+  const substepMap = await loadSubstepCompletionsMap(
+    supabase,
+    projectRows.map((project) => project.id)
+  )
+
+  const enriched = projectRows.map((project) =>
+    enrichProject(
+      project,
+      thresholds.hoggerDays,
+      thresholds.warningDays,
+      runtimeSteps,
+      substepMap.get(project.id) ?? []
+    )
   )
   return sortProjects(filterProjects(enriched, filters), filters.sort)
 }

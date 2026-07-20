@@ -92,13 +92,13 @@ export function MarkDoneDialog({
         outcome: hasOutcome ? (outcome || undefined) : undefined,
         rescheduleDate: outcome === "reschedule" ? rescheduleDate : undefined,
       })
-      if (!result.success) {
-        setError(result.error)
+      if (result.success) {
+        setOpen(false)
+        resetState()
+        router.refresh()
         return
       }
-      setOpen(false)
-      resetState()
-      router.refresh()
+      setError(result.error)
     })
   }
 
@@ -111,7 +111,7 @@ export function MarkDoneDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button size="sm">Mark as Done</Button>
+        <Button size="sm">Tandai Selesai</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

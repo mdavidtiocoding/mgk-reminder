@@ -11,9 +11,10 @@ import type { DashboardProject } from "@/lib/projects/dashboard"
 
 type DashboardProjectListProps = {
   projects: DashboardProject[]
+  loadError?: string | null
 }
 
-export function DashboardProjectList({ projects }: DashboardProjectListProps) {
+export function DashboardProjectList({ projects, loadError }: DashboardProjectListProps) {
   const [query, setQuery] = useState("")
   const [debounced, setDebounced] = useState("")
 
@@ -46,17 +47,30 @@ export function DashboardProjectList({ projects }: DashboardProjectListProps) {
         />
       </div>
 
+      {loadError && (
+        <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          Gagal memuat project: {loadError}. Cek koneksi Supabase atau jalankan{" "}
+          <code className="text-xs">database/add-substeps.sql</code> jika belum.
+        </p>
+      )}
+
       {filtered.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
           <p className="text-sm font-medium">
-            {projects.length === 0 ? "Belum ada project" : "Tidak ada hasil"}
+            {loadError
+              ? "Project tidak bisa dimuat"
+              : projects.length === 0
+                ? "Belum ada project"
+                : "Tidak ada hasil"}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {projects.length === 0
-              ? "Buat project pertama untuk mulai tracking workflow."
-              : "Coba kata kunci lain atau ubah filter."}
+            {loadError
+              ? "Lihat pesan error di atas."
+              : projects.length === 0
+                ? "Buat project baru, atau ubah filter status ke Semua status jika project sudah selesai."
+                : "Coba kata kunci lain atau ubah filter."}
           </p>
-          {projects.length === 0 && (
+          {projects.length === 0 && !loadError && (
             <Button className="mt-4" size="sm" asChild>
               <Link href="/projects/new">+ Buat Project</Link>
             </Button>

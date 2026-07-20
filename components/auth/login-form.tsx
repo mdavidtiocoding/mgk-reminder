@@ -107,7 +107,7 @@ export function LoginForm() {
         <div className="flex flex-col gap-0.5">
           {[
             ["marketing", "Marketing"],
-            ["ar", "Finance AR"],
+            ["ar", "AR"],
             ["logistik", "Logistik"],
             ["finance", "Finance"],
             ["shipping", "Shipping"],

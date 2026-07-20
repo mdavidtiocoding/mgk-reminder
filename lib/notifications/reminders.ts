@@ -8,6 +8,8 @@ import {
   getDefaultRepeatDays,
   type CompletionInfo,
 } from "@/lib/projects/active-steps"
+import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
+import { loadSubstepCompletionsMap } from "@/lib/projects/substep-data"
 
 import { notifyAdminsHogger, notifyDivisionForStep } from "./send"
 
@@ -41,12 +43,17 @@ const ACTIVE_PROJECT_SELECT = `
 
 /** Daily hogger sweep — flags active steps stuck too long, notifies admins. */
 export async function runDailyReminders(supabase: SupabaseClient) {
-  const [{ data: projects }, thresholds] = await Promise.all([
+  const [{ data: projects }, thresholds, runtimeSteps] = await Promise.all([
     supabase.from("projects").select(ACTIVE_PROJECT_SELECT).eq("status", "active"),
     getAppThresholds(supabase),
+    loadRuntimeSteps(supabase),
   ])
 
   let hoggerAlerts = 0
+  const substepMap = await loadSubstepCompletionsMap(
+    supabase,
+    ((projects ?? []) as ProjectRow[]).map((project) => project.id)
+  )
 
   for (const project of (projects ?? []) as ProjectRow[]) {
     const completions: CompletionInfo[] = (project.step_completions ?? []).map((c) => ({
@@ -54,12 +61,17 @@ export async function runDailyReminders(supabase: SupabaseClient) {
       completedAt: c.completed_at,
     }))
 
+    const substepCompletions = substepMap.get(project.id) ?? []
+
     const computedSteps = computeProjectSteps(completions, {
       createdAt: project.created_at,
       ex_work_date: project.ex_work_date,
       etd_date: project.etd_date,
       eta_date: project.eta_date,
       mos_date: project.mos_date,
+    }, {
+      steps: runtimeSteps,
+      substepCompletions,
     })
 
     for (const active of getActiveComputedSteps(computedSteps)) {
@@ -99,10 +111,10 @@ export async function runDailyReminders(supabase: SupabaseClient) {
  * (falling back to the step's own default repeat, if any) up to max_repeats.
  */
 export async function runStepReminders(supabase: SupabaseClient) {
-  const { data: projects } = await supabase
-    .from("projects")
-    .select(ACTIVE_PROJECT_SELECT)
-    .eq("status", "active")
+  const [{ data: projects }, runtimeSteps] = await Promise.all([
+    supabase.from("projects").select(ACTIVE_PROJECT_SELECT).eq("status", "active"),
+    loadRuntimeSteps(supabase),
+  ])
 
   const { data: configs } = await supabase.from("reminder_config").select("*")
   const configMap = new Map<string, ReminderConfigRow>(
@@ -111,6 +123,10 @@ export async function runStepReminders(supabase: SupabaseClient) {
 
   let remindersSent = 0
   const now = Date.now()
+  const substepMap = await loadSubstepCompletionsMap(
+    supabase,
+    ((projects ?? []) as ProjectRow[]).map((project) => project.id)
+  )
 
   for (const project of (projects ?? []) as ProjectRow[]) {
     const completions: CompletionInfo[] = (project.step_completions ?? []).map((c) => ({
@@ -118,12 +134,17 @@ export async function runStepReminders(supabase: SupabaseClient) {
       completedAt: c.completed_at,
     }))
 
+    const substepCompletions = substepMap.get(project.id) ?? []
+
     const computedSteps = computeProjectSteps(completions, {
       createdAt: project.created_at,
       ex_work_date: project.ex_work_date,
       etd_date: project.etd_date,
       eta_date: project.eta_date,
       mos_date: project.mos_date,
+    }, {
+      steps: runtimeSteps,
+      substepCompletions,
     })
 
     for (const active of getActiveComputedSteps(computedSteps)) {

@@ -1,5 +1,10 @@
 import {
-  isStepActive,
+  areAllSubstepsComplete,
+  getCompletedSubstepKeys,
+  type SubstepCompletion,
+} from "@/lib/steps/substeps"
+import type { RuntimeStep } from "@/lib/steps/runtime-config"
+import {
   STEPS,
   type DateField,
   type StepDefinition,
@@ -24,13 +29,18 @@ export type ProjectDates = {
 export type StepComputedStatus = "done" | "active" | "locked"
 
 export type ComputedStep = {
-  definition: StepDefinition
+  definition: RuntimeStep
   status: StepComputedStatus
   completion?: CompletionInfo
   /** When this step's prerequisites were all satisfied (used for waiting/hogger). */
   unlockedAt: Date | null
   /** Earliest moment a reminder is eligible to fire for this step (trigger-type aware). */
   triggerAt: Date | null
+}
+
+export type ComputeProjectStepsOptions = {
+  steps?: RuntimeStep[]
+  substepCompletions?: SubstepCompletion[]
 }
 
 function addDays(date: Date, days: number): Date {
@@ -118,27 +128,80 @@ export function getDefaultRepeatDays(step: StepDefinition): number | undefined {
   return undefined
 }
 
+export function buildDoneCodes(
+  completions: CompletionInfo[],
+  substepCompletions: SubstepCompletion[],
+  steps: RuntimeStep[]
+): Set<string> {
+  const completionByCode = new Map(completions.map((c) => [c.stepCode, c]))
+  const done = new Set<string>()
+
+  for (const step of steps) {
+    if (step.substeps.length > 0) {
+      const completedKeys = getCompletedSubstepKeys(step.code, substepCompletions)
+      if (areAllSubstepsComplete(step.substeps, completedKeys)) {
+        done.add(step.code)
+      }
+      continue
+    }
+
+    if (completionByCode.has(step.code)) {
+      done.add(step.code)
+    }
+  }
+
+  return done
+}
+
+export function isStepActiveForFlow(
+  step: RuntimeStep,
+  doneCodes: Set<string>
+): boolean {
+  if (doneCodes.has(step.code)) return false
+  return step.prerequisites.every((code) => doneCodes.has(code))
+}
+
 export function computeProjectSteps(
   completions: CompletionInfo[],
-  project: ProjectDates
+  project: ProjectDates,
+  options: ComputeProjectStepsOptions = {}
 ): ComputedStep[] {
+  const steps = options.steps ?? (STEPS as RuntimeStep[])
+  const substepCompletions = options.substepCompletions ?? []
   const completionByCode = new Map(completions.map((c) => [c.stepCode, c]))
-  const doneCodes = new Set(completions.map((c) => c.stepCode))
+  const doneCodes = buildDoneCodes(completions, substepCompletions, steps)
 
-  return STEPS.map((step) => {
+  return steps.map((step) => {
     const completion = completionByCode.get(step.code)
+    const completedSubstepKeys = getCompletedSubstepKeys(step.code, substepCompletions)
 
-    if (completion) {
+    if (doneCodes.has(step.code)) {
+      const completedAt =
+        completion?.completedAt ??
+        substepCompletions
+          .filter((c) => c.stepCode === step.code)
+          .map((c) => c.completedAt)
+          .sort()
+          .at(-1)
+
       return {
         definition: step,
         status: "done" as const,
-        completion,
+        completion: completedAt
+          ? {
+              stepCode: step.code,
+              completedAt,
+              completedByName: completion?.completedByName,
+              note: completion?.note,
+              outcome: completion?.outcome,
+            }
+          : completion,
         unlockedAt: null,
         triggerAt: null,
       }
     }
 
-    const active = isStepActive(step, doneCodes)
+    const active = isStepActiveForFlow(step, doneCodes)
     if (!active) {
       return {
         definition: step,
@@ -154,6 +217,18 @@ export function computeProjectSteps(
     return {
       definition: step,
       status: "active" as const,
+      completion:
+        completedSubstepKeys.size > 0
+          ? {
+              stepCode: step.code,
+              completedAt:
+                substepCompletions
+                  .filter((c) => c.stepCode === step.code)
+                  .map((c) => c.completedAt)
+                  .sort()
+                  .at(-1) ?? unlockedAt.toISOString(),
+            }
+          : undefined,
       unlockedAt,
       triggerAt,
     }

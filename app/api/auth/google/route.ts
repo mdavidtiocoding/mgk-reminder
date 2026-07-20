@@ -1,5 +1,4 @@
 import { randomBytes } from "crypto"
-import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 
 import { resolveGoogleRedirectUri } from "@/lib/google/env"
@@ -35,7 +34,6 @@ export async function GET(request: Request) {
     )
   }
 
-  const cookieStore = await cookies()
   const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -44,8 +42,9 @@ export async function GET(request: Request) {
     maxAge: 60 * 10,
   }
 
-  cookieStore.set(STATE_COOKIE, state, cookieOptions)
-  cookieStore.set(REDIRECT_URI_COOKIE, redirectUri, cookieOptions)
+  const response = NextResponse.redirect(authUrl)
+  response.cookies.set(STATE_COOKIE, state, cookieOptions)
+  response.cookies.set(REDIRECT_URI_COOKIE, redirectUri, cookieOptions)
 
-  return NextResponse.redirect(authUrl)
+  return response
 }

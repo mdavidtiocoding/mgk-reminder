@@ -11,7 +11,7 @@ const DIVISIONS = ["marketing", "ar", "logistik", "finance", "shipping", "projec
 
 const DIVISION_NAMES = {
   marketing: "Dummy Marketing",
-  ar: "Dummy Finance AR",
+  ar: "Dummy AR",
   logistik: "Dummy Logistik",
   finance: "Dummy Finance",
   shipping: "Dummy Shipping",

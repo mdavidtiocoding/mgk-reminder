@@ -30,7 +30,7 @@ export function StageProgressBar({
     <div className="rounded-xl border bg-card p-5">
       <div className="mb-4 flex flex-col gap-0.5">
         <p className="text-base font-semibold">
-          Stage {currentStage} / {TOTAL_STAGE_COUNT} — {STAGE_LABELS[currentStage]}
+          Tahap {currentStage} / {TOTAL_STAGE_COUNT} — {STAGE_LABELS[currentStage]}
         </p>
         <p className="text-sm text-muted-foreground">
           {doneCount} / {totalCount} step selesai
@@ -51,7 +51,7 @@ export function StageProgressBar({
                 <button
                   type="button"
                   onClick={() => jumpToStage(stage)}
-                  title={`Loncat ke Stage ${stage} — ${STAGE_LABELS[stage]}`}
+                  title={`Loncat ke Tahap ${stage} — ${STAGE_LABELS[stage]}`}
                   className={cn(
                     "flex size-8 items-center justify-center rounded-full border-2 text-xs font-semibold transition-colors",
                     "cursor-pointer hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",

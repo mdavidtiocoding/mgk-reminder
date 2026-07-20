@@ -25,8 +25,6 @@ export async function GET(request: Request) {
   const cookieStore = await cookies()
   const savedState = cookieStore.get(STATE_COOKIE)?.value
   const redirectUri = cookieStore.get(REDIRECT_URI_COOKIE)?.value
-  cookieStore.delete(STATE_COOKIE)
-  cookieStore.delete(REDIRECT_URI_COOKIE)
 
   if (!code || !state || !savedState || state !== savedState || !redirectUri) {
     return NextResponse.redirect(
@@ -46,9 +44,12 @@ export async function GET(request: Request) {
   try {
     const tokens = await exchangeGoogleCode(code, redirectUri)
     await saveGoogleTokensForUser(user.id, tokens)
-    return NextResponse.redirect(
+    const response = NextResponse.redirect(
       new URL("/settings?google=connected", appOrigin)
     )
+    response.cookies.delete(STATE_COOKIE)
+    response.cookies.delete(REDIRECT_URI_COOKIE)
+    return response
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Gagal menghubungkan Google Calendar."
@@ -57,8 +58,11 @@ export async function GET(request: Request) {
       google: "error",
       msg: message.slice(0, 300),
     })
-    return NextResponse.redirect(
+    const response = NextResponse.redirect(
       new URL(`/settings?${params.toString()}`, appOrigin)
     )
+    response.cookies.delete(STATE_COOKIE)
+    response.cookies.delete(REDIRECT_URI_COOKIE)
+    return response
   }
 }

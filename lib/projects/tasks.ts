@@ -7,7 +7,16 @@ import {
   getActiveComputedSteps,
   type CompletionInfo,
 } from "@/lib/projects/active-steps"
+import { buildProjectSearchHaystack, matchesTokenSearch } from "@/lib/search/match"
 import { type Division, getDivisionLabel } from "@/lib/steps"
+import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
+import {
+  getNextSubstep,
+  getCompletedSubstepKeys,
+  type SubstepCompletion,
+  type SubstepDefinition,
+} from "@/lib/steps/substeps"
+import { loadSubstepCompletionsMap } from "@/lib/projects/substep-data"
 
 type StepCompletionRow = {
   step_code: string
@@ -38,6 +47,12 @@ export type MyTask = {
   isHogger: boolean
   isWaitingWarning: boolean
   canComplete: boolean
+  substeps: SubstepDefinition[]
+  substepCompletions: SubstepCompletion[]
+  nextSubstepLabel: string | null
+  hasOutcome?: boolean
+  checklist?: string[]
+  dateInputs?: import("@/lib/steps").DateInputField[]
 }
 
 function normalizeCustomer(
@@ -63,9 +78,10 @@ function isTaskForUser(
 
 export async function getMyTasks(
   supabase: SupabaseClient,
-  userDivision?: Division | null
+  userDivision?: Division | null,
+  searchQuery?: string
 ): Promise<MyTask[]> {
-  const [{ data, error }, thresholds] = await Promise.all([
+  const [{ data, error }, thresholds, runtimeSteps] = await Promise.all([
     supabase
       .from("projects")
       .select(
@@ -84,19 +100,28 @@ export async function getMyTasks(
       )
       .eq("status", "active"),
     getAppThresholds(supabase),
+    loadRuntimeSteps(supabase),
   ])
 
   if (error) {
     throw new Error(error.message)
   }
 
+  const projectRows = (data ?? []) as ProjectRow[]
+  const substepMap = await loadSubstepCompletionsMap(
+    supabase,
+    projectRows.map((project) => project.id)
+  )
+
   const tasks: MyTask[] = []
 
-  for (const project of (data ?? []) as ProjectRow[]) {
+  for (const project of projectRows) {
     const completions: CompletionInfo[] = (project.step_completions ?? []).map((c) => ({
       stepCode: c.step_code,
       completedAt: c.completed_at,
     }))
+
+    const substepCompletions = substepMap.get(project.id) ?? []
 
     const computedSteps = computeProjectSteps(completions, {
       createdAt: project.created_at,
@@ -104,6 +129,9 @@ export async function getMyTasks(
       etd_date: project.etd_date,
       eta_date: project.eta_date,
       mos_date: project.mos_date,
+    }, {
+      steps: runtimeSteps,
+      substepCompletions,
     })
 
     for (const active of getActiveComputedSteps(computedSteps)) {
@@ -111,8 +139,13 @@ export async function getMyTasks(
       if (!isTaskForUser(step.division, userDivision)) continue
 
       const waitingDays = active.unlockedAt ? daysSince(active.unlockedAt) : 0
+      const stepSubstepCompletions = substepCompletions.filter(
+        (c) => c.stepCode === step.code
+      )
+      const completedKeys = getCompletedSubstepKeys(step.code, substepCompletions)
+      const nextSubstep = getNextSubstep(step.substeps, completedKeys)
 
-      tasks.push({
+      const task: MyTask = {
         projectId: project.id,
         projectName: project.name,
         customerName: normalizeCustomer(project.customer)?.name ?? null,
@@ -123,7 +156,28 @@ export async function getMyTasks(
         isHogger: waitingDays > thresholds.hoggerDays,
         isWaitingWarning: waitingDays > thresholds.warningDays,
         canComplete: userDivision === "admin" || userDivision === step.division,
-      })
+        substeps: step.substeps,
+        substepCompletions: stepSubstepCompletions,
+        nextSubstepLabel: nextSubstep?.label ?? null,
+        hasOutcome: step.hasOutcome,
+        checklist: step.checklist,
+        dateInputs: step.dateInputs,
+      }
+
+      if (searchQuery?.trim()) {
+        const haystack = buildProjectSearchHaystack([
+          task.projectName,
+          task.customerName,
+          task.stepCode,
+          task.stepName,
+          task.divisionLabel,
+          task.nextSubstepLabel,
+          ...task.substeps.map((s) => s.label),
+        ])
+        if (!matchesTokenSearch(haystack, searchQuery)) continue
+      }
+
+      tasks.push(task)
     }
   }
 

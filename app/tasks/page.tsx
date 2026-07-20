@@ -1,7 +1,9 @@
+import { Suspense } from "react"
 import { redirect } from "next/navigation"
 
 import { TaskCard } from "@/components/tasks/task-card"
-import { AppHeader } from "@/components/layout/app-header"
+import { AppHeader, OutstandingBadge } from "@/components/layout/app-header"
+import { UrlSearchInput } from "@/components/search/url-search-input"
 import { getMyTasks, type MyTask } from "@/lib/projects/tasks"
 import type { Division } from "@/lib/steps"
 import { createClient } from "@/lib/supabase/server"
@@ -38,7 +40,11 @@ function groupTasksByProject(tasks: MyTask[]): TaskGroup[] {
   )
 }
 
-export default async function MyTasksPage() {
+export default async function MyTasksPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>
+}) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -55,11 +61,13 @@ export default async function MyTasksPage() {
     .single()
 
   let tasks: MyTask[] = []
+  const { q } = await searchParams
 
   try {
     tasks = await getMyTasks(
       supabase,
-      profile?.division as Division | undefined
+      profile?.division as Division | undefined,
+      q
     )
   } catch {
     tasks = []
@@ -72,16 +80,27 @@ export default async function MyTasksPage() {
       <AppHeader
         userName={profile?.name ?? user.email ?? "User"}
         division={profile?.division}
+        outstandingCount={tasks.length}
       />
       <main className="flex flex-1 flex-col gap-6 p-6">
         <div>
-          <h2 className="text-base font-medium">My Tasks</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-medium">My Tasks</h2>
+            <OutstandingBadge count={tasks.length} className="h-6 min-w-6 px-2 text-xs" />
+          </div>
           <p className="text-sm text-muted-foreground">
             Step aktif yang menjadi tanggung jawab divisi kamu
             {profile?.division === "admin" ? " (admin: semua step)" : ""}
             {" · "}
-            {tasks.length} task{tasks.length !== 1 ? "s" : ""}
+            <span className="font-medium text-foreground">
+              {tasks.length} outstanding
+            </span>
           </p>
+          <div className="mt-3">
+            <Suspense fallback={null}>
+              <UrlSearchInput placeholder="Cari project, customer, step…" />
+            </Suspense>
+          </div>
         </div>
 
         {groups.length === 0 ? (

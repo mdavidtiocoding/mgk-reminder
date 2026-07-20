@@ -98,7 +98,7 @@ export function SetFollowUpDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline">
-          Set Follow-up
+          Atur Follow-up
         </Button>
       </DialogTrigger>
       <DialogContent>
