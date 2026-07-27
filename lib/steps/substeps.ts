@@ -1,7 +1,11 @@
+export type SubstepKind = "required" | "reminder"
+
 export type SubstepDefinition = {
   key: string
   label: string
   sortOrder: number
+  /** required = wajib selesai agar step unlock; reminder = self-reminder, tidak blok unlock */
+  kind?: SubstepKind
 }
 
 export type SubstepCompletion = {
@@ -12,6 +16,19 @@ export type SubstepCompletion = {
   completedByName?: string | null
   note?: string | null
   eventDate?: string | null
+}
+
+export const SUBSTEP_KIND_LABELS: Record<SubstepKind, string> = {
+  required: "Wajib (unlock)",
+  reminder: "Reminder saja",
+}
+
+export function getSubstepKind(substep: SubstepDefinition): SubstepKind {
+  return substep.kind === "reminder" ? "reminder" : "required"
+}
+
+export function parseSubstepKind(value: unknown): SubstepKind {
+  return value === "reminder" ? "reminder" : "required"
 }
 
 export function parseSubsteps(raw: unknown): SubstepDefinition[] {
@@ -29,7 +46,12 @@ export function parseSubsteps(raw: unknown): SubstepDefinition[] {
           ? record.sortOrder
           : parsed.length + 1
     if (!key || !label) continue
-    parsed.push({ key, label, sortOrder })
+    parsed.push({
+      key,
+      label,
+      sortOrder,
+      kind: parseSubstepKind(record.kind),
+    })
   }
   return parsed.sort((a, b) => a.sortOrder - b.sortOrder)
 }
@@ -39,6 +61,7 @@ export function serializeSubsteps(substeps: SubstepDefinition[]): unknown[] {
     key: substep.key,
     label: substep.label,
     sort_order: substep.sortOrder || index + 1,
+    kind: getSubstepKind(substep),
   }))
 }
 
@@ -59,6 +82,14 @@ export function getCompletedSubstepKeys(
   )
 }
 
+export function getRequiredSubsteps(substeps: SubstepDefinition[]): SubstepDefinition[] {
+  return substeps.filter((substep) => getSubstepKind(substep) === "required")
+}
+
+export function getReminderSubsteps(substeps: SubstepDefinition[]): SubstepDefinition[] {
+  return substeps.filter((substep) => getSubstepKind(substep) === "reminder")
+}
+
 export function areAllSubstepsComplete(
   substeps: SubstepDefinition[],
   completedKeys: Set<string>
@@ -67,9 +98,50 @@ export function areAllSubstepsComplete(
   return substeps.every((substep) => completedKeys.has(substep.key))
 }
 
+/** Step unlocks when all required substeps are done (reminder substeps may stay pending). */
+export function areRequiredSubstepsComplete(
+  substeps: SubstepDefinition[],
+  completedKeys: Set<string>
+): boolean {
+  const required = getRequiredSubsteps(substeps)
+  if (required.length === 0) {
+    return areAllSubstepsComplete(substeps, completedKeys)
+  }
+  return required.every((substep) => completedKeys.has(substep.key))
+}
+
+export function getPendingReminderSubsteps(
+  substeps: SubstepDefinition[],
+  completedKeys: Set<string>
+): SubstepDefinition[] {
+  return getReminderSubsteps(substeps).filter((substep) => !completedKeys.has(substep.key))
+}
+
+export function getNextRequiredSubstep(
+  substeps: SubstepDefinition[],
+  completedKeys: Set<string>
+): SubstepDefinition | null {
+  return (
+    getRequiredSubsteps(substeps).find((substep) => !completedKeys.has(substep.key)) ?? null
+  )
+}
+
+/** Next incomplete sub-step in order (legacy — prefers required chain). */
 export function getNextSubstep(
   substeps: SubstepDefinition[],
   completedKeys: Set<string>
 ): SubstepDefinition | null {
-  return substeps.find((substep) => !completedKeys.has(substep.key)) ?? null
+  const nextRequired = getNextRequiredSubstep(substeps, completedKeys)
+  if (nextRequired) return nextRequired
+  return getPendingReminderSubsteps(substeps, completedKeys)[0] ?? null
+}
+
+export function canCompleteSubstepNow(
+  substep: SubstepDefinition,
+  substeps: SubstepDefinition[],
+  completedKeys: Set<string>
+): boolean {
+  if (completedKeys.has(substep.key)) return false
+  if (getSubstepKind(substep) === "reminder") return true
+  return getNextRequiredSubstep(substeps, completedKeys)?.key === substep.key
 }

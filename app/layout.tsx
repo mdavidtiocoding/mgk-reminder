@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+import { getUiTheme } from "@/lib/ui/theme.server";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -17,15 +19,20 @@ export const metadata: Metadata = {
   description: "Workflow tracker & reminder system for internal team",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const theme = await getUiTheme();
+
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      data-ui-theme={theme}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased ${
+        theme === "premium" ? "theme-premium" : "theme-classic"
+      }`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

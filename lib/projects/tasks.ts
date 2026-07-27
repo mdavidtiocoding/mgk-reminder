@@ -13,14 +13,22 @@ import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
 import {
   getNextSubstep,
   getCompletedSubstepKeys,
+  getPendingReminderSubsteps,
   type SubstepCompletion,
   type SubstepDefinition,
 } from "@/lib/steps/substeps"
 import { loadSubstepCompletionsMap } from "@/lib/projects/substep-data"
+import { indexLatestReschedules } from "@/lib/projects/reschedule-log"
 
 type StepCompletionRow = {
   step_code: string
   completed_at: string
+}
+
+type ReminderLogRow = {
+  step_code: string
+  sent_at: string
+  channel: string
 }
 
 type ProjectRow = {
@@ -34,6 +42,7 @@ type ProjectRow = {
   mos_date: string | null
   customer: { name: string } | { name: string }[] | null
   step_completions: StepCompletionRow[]
+  reminder_log: ReminderLogRow[]
 }
 
 export type MyTask = {
@@ -52,7 +61,10 @@ export type MyTask = {
   nextSubstepLabel: string | null
   hasOutcome?: boolean
   checklist?: string[]
+  completionMode?: import("@/lib/steps/completion-mode").StepCompletionMode
   dateInputs?: import("@/lib/steps").DateInputField[]
+  lastRescheduleDate?: string
+  lastRescheduleAt?: string
 }
 
 function normalizeCustomer(
@@ -95,7 +107,8 @@ export async function getMyTasks(
       eta_date,
       mos_date,
       customer:customers(name),
-      step_completions(step_code, completed_at)
+      step_completions(step_code, completed_at),
+      reminder_log(step_code, sent_at, channel)
     `
       )
       .eq("status", "active"),
@@ -122,6 +135,7 @@ export async function getMyTasks(
     }))
 
     const substepCompletions = substepMap.get(project.id) ?? []
+    const rescheduleByStep = indexLatestReschedules(project.reminder_log ?? [])
 
     const computedSteps = computeProjectSteps(completions, {
       createdAt: project.created_at,
@@ -144,6 +158,7 @@ export async function getMyTasks(
       )
       const completedKeys = getCompletedSubstepKeys(step.code, substepCompletions)
       const nextSubstep = getNextSubstep(step.substeps, completedKeys)
+      const reschedule = rescheduleByStep.get(step.code)
 
       const task: MyTask = {
         projectId: project.id,
@@ -161,6 +176,63 @@ export async function getMyTasks(
         nextSubstepLabel: nextSubstep?.label ?? null,
         hasOutcome: step.hasOutcome,
         checklist: step.checklist,
+        completionMode: step.completionMode,
+        dateInputs: step.dateInputs,
+        lastRescheduleDate: reschedule?.newExWorkDate,
+        lastRescheduleAt: reschedule?.rescheduledAt,
+      }
+
+      if (searchQuery?.trim()) {
+        const haystack = buildProjectSearchHaystack([
+          task.projectName,
+          task.customerName,
+          task.stepCode,
+          task.stepName,
+          task.divisionLabel,
+          task.nextSubstepLabel,
+          ...task.substeps.map((s) => s.label),
+        ])
+        if (!matchesTokenSearch(haystack, searchQuery)) continue
+      }
+
+      tasks.push(task)
+    }
+
+    for (const computed of computedSteps) {
+      if (computed.status !== "done") continue
+      const step = computed.definition
+      if (!isTaskForUser(step.division, userDivision)) continue
+
+      const completedKeys = getCompletedSubstepKeys(step.code, substepCompletions)
+      const pendingReminders = getPendingReminderSubsteps(step.substeps, completedKeys)
+      if (pendingReminders.length === 0) continue
+
+      const stepCompletion = completions.find((c) => c.stepCode === step.code)
+      const waitingDays = stepCompletion
+        ? daysSince(new Date(stepCompletion.completedAt))
+        : 0
+      const stepSubstepCompletions = substepCompletions.filter(
+        (c) => c.stepCode === step.code
+      )
+      const nextSubstep = pendingReminders[0]
+
+      const task: MyTask = {
+        projectId: project.id,
+        projectName: project.name,
+        customerName: normalizeCustomer(project.customer)?.name ?? null,
+        stepCode: step.code,
+        stepName: step.name,
+        divisionLabel: getDivisionLabel(step.division),
+        waitingDays,
+        isHogger: waitingDays > thresholds.hoggerDays,
+        isWaitingWarning: waitingDays > thresholds.warningDays,
+        canComplete: userDivision === "admin" || userDivision === step.division,
+        substeps: step.substeps,
+        substepCompletions: stepSubstepCompletions,
+        nextSubstepLabel: nextSubstep ? `${nextSubstep.label} (reminder)` : null,
+        hasOutcome: step.hasOutcome,
+        checklist: step.checklist,
+        completionMode: step.completionMode,
         dateInputs: step.dateInputs,
       }
 

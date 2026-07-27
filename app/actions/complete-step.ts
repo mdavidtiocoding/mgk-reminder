@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 
-import { clearCalendarRemindersForStep, createStepUnlockCalendarEvents } from "@/lib/google/calendar"
+import { clearCalendarRemindersForStep, createStepUnlockCalendarEvents, resyncCalendarEventsForDateField } from "@/lib/google/calendar"
 import { dateToDateKeyWib } from "@/lib/format"
 import { notifyDivisionForStep } from "@/lib/notifications/send"
 import {
@@ -12,7 +12,19 @@ import {
   isStepActiveForFlow,
 } from "@/lib/projects/active-steps"
 import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
+import {
+  buildChecklistResponses,
+  formatCompletionNote,
+  validateChecklistResponses,
+  type ChecklistItemResponse,
+} from "@/lib/steps/checklist-response"
+import {
+  requiresChecklist,
+  requiresKeterangan,
+} from "@/lib/steps/completion-mode"
 import type { DateField } from "@/lib/steps"
+import { buildRescheduleChannel } from "@/lib/projects/reschedule-log"
+import { createServiceClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 
 export type CompleteStepResult =
@@ -27,6 +39,7 @@ export type CompleteStepOptions = {
   outcome?: "ok" | "reschedule"
   rescheduleDate?: string
   checkedItems?: string[]
+  checklistItemNotes?: Record<string, string>
 }
 
 export async function completeStep(
@@ -116,11 +129,41 @@ export async function completeStep(
     }
   }
 
-  if (step.checklist && step.checklist.length > 0) {
-    const checked = new Set(options.checkedItems ?? [])
-    const allChecked = step.checklist.every((item) => checked.has(item))
-    if (!allChecked) {
-      return { success: false, error: "Semua item checklist harus dicentang." }
+  const completionMode = step.completionMode ?? "normal"
+
+  let checklistResponses: ChecklistItemResponse[] | undefined
+
+  const validateChecklist = (items: string[]) => {
+    const responses = buildChecklistResponses(
+      items,
+      options.checkedItems ?? [],
+      options.checklistItemNotes ?? {}
+    )
+    const checklistError = validateChecklistResponses(items, responses)
+    if (checklistError) {
+      return { success: false as const, error: checklistError }
+    }
+    checklistResponses = responses
+    return null
+  }
+
+  if (requiresChecklist(completionMode)) {
+    if (!step.checklist || step.checklist.length === 0) {
+      return {
+        success: false,
+        error: "Step checklist belum dikonfigurasi di Flow Config.",
+      }
+    }
+    const checklistError = validateChecklist(step.checklist)
+    if (checklistError) return checklistError
+  } else if (step.checklist && step.checklist.length > 0) {
+    const checklistError = validateChecklist(step.checklist)
+    if (checklistError) return checklistError
+  }
+
+  if (requiresKeterangan(completionMode)) {
+    if (!options.note?.trim()) {
+      return { success: false, error: "Keterangan wajib diisi." }
     }
   }
 
@@ -148,6 +191,22 @@ export async function completeStep(
           return { success: false, error: updateError.message }
         }
       }
+
+      const service = createServiceClient()
+      if (service) {
+        await service.from("reminder_log").insert({
+          project_id: projectId,
+          step_code: stepCode,
+          channel: buildRescheduleChannel(options.rescheduleDate),
+        })
+      }
+
+      await resyncCalendarEventsForDateField({
+        projectId,
+        dateField: "ex_work_date",
+        actingUserId: user.id,
+        newDateValue: options.rescheduleDate,
+      })
 
       revalidatePath(`/projects/${projectId}`)
       revalidatePath("/")
@@ -200,7 +259,9 @@ export async function completeStep(
     project_id: projectId,
     step_code: stepCode,
     completed_by: user.id,
-    note: options.note?.trim() || null,
+    note: checklistResponses
+      ? formatCompletionNote(checklistResponses, options.note)
+      : options.note?.trim() || null,
     outcome,
   })
 

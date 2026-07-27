@@ -1,5 +1,5 @@
 import {
-  areAllSubstepsComplete,
+  areRequiredSubstepsComplete,
   getCompletedSubstepKeys,
   type SubstepCompletion,
 } from "@/lib/steps/substeps"
@@ -139,7 +139,7 @@ export function buildDoneCodes(
   for (const step of steps) {
     if (step.substeps.length > 0) {
       const completedKeys = getCompletedSubstepKeys(step.code, substepCompletions)
-      if (areAllSubstepsComplete(step.substeps, completedKeys)) {
+      if (areRequiredSubstepsComplete(step.substeps, completedKeys)) {
         done.add(step.code)
       }
       continue

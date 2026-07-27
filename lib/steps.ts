@@ -1,3 +1,5 @@
+import type { StepCompletionMode } from "@/lib/steps/completion-mode"
+
 export type Division =
   | "marketing"
   | "ar"
@@ -48,6 +50,8 @@ export type StepDefinition = {
   prerequisites: string[]
   /** Optional checklist that must be fully checked before Mark as Done is enabled. */
   checklist?: string[]
+  /** Mark-as-done behavior — configurable in Flow Config. */
+  completionMode?: StepCompletionMode
   /** Date field(s) captured on this project when this step is marked done. */
   dateInputs?: DateInputField[]
   /** Whether this step has an OK / reschedule outcome (e.g. survey result). */

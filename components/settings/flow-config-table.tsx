@@ -1,22 +1,32 @@
-"use client"
+﻿"use client"
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Pencil } from "lucide-react"
+import { Eye, GitBranch, Pencil, Table2 } from "lucide-react"
 
-import { updateStepPrerequisites, updateStepUnlocks, updateStepSubsteps } from "@/app/actions/flow-config"
-import { updateStepDefinitionName } from "@/app/actions/settings"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  updateStepCompletionConfig,
+  updateStepPrerequisites,
+  updateStepSubsteps,
+  updateStepUnlocks,
+} from "@/app/actions/flow-config"
+import { updateStepDefinitionName } from "@/app/actions/settings"
+import {
+  DependencyDisplay,
+  SubstepDisplay,
+  TriggerDisplay,
+  UnlockDisplay,
+  buildNameLookup,
+} from "@/components/settings/flow-config/display-cells"
+import {
+  type FlowPageMode,
+  type FlowStepDraft,
+} from "@/components/settings/flow-config/flow-step-drawer-types"
+import { FlowStepEditDrawer } from "@/components/settings/flow-config/flow-step-edit-drawer"
+import { FlowGraphView } from "@/components/settings/flow-config/flow-graph-view"
+import { FlowConfigLegend } from "@/components/settings/flow-config/legend"
+import { FlowValidationBanner } from "@/components/settings/flow-config/validation-banner"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -33,7 +43,12 @@ import {
   getDivisionLabel,
   getStep,
 } from "@/lib/steps"
-import { slugifySubstepKey, type SubstepDefinition } from "@/lib/steps/substeps"
+import type { SubstepDefinition } from "@/lib/steps/substeps"
+import {
+  COMPLETION_MODE_BADGES,
+  COMPLETION_MODE_LABELS,
+  type StepCompletionMode,
+} from "@/lib/steps/completion-mode"
 import { cn } from "@/lib/utils"
 
 export type FlowConfigRow = {
@@ -43,6 +58,8 @@ export type FlowConfigRow = {
   stage: number
   prerequisites: string[]
   substeps: SubstepDefinition[]
+  completionMode: StepCompletionMode
+  checklistItems: string[]
   triggerDescription: string
   unlocksSteps: string[]
 }
@@ -62,16 +79,17 @@ type SortOption =
   | "stage-desc"
   | "division-asc"
 
+type LayoutViewMode = "table" | "flow"
+
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "flow", label: "Urutan flow" },
-  { value: "code-asc", label: "Code (A → Z)" },
-  { value: "code-desc", label: "Code (Z → A)" },
-  { value: "name-asc", label: "Nama (A → Z)" },
-  { value: "stage-asc", label: "Tahap (1 → 8)" },
-  { value: "stage-desc", label: "Tahap (8 → 1)" },
-  { value: "division-asc", label: "Divisi (A → Z)" },
+  { value: "code-asc", label: "Code (A \u2192 Z)" },
+  { value: "code-desc", label: "Code (Z \u2192 A)" },
+  { value: "name-asc", label: "Nama (A \u2192 Z)" },
+  { value: "stage-asc", label: "Tahap (1 \u2192 8)" },
+  { value: "stage-desc", label: "Tahap (8 \u2192 1)" },
+  { value: "division-asc", label: "Divisi (A \u2192 Z)" },
 ]
-
 function compareStepCodes(a: string, b: string) {
   const parse = (code: string) => {
     const match = code.match(/^([A-Za-z]+)(\d+)$/)
@@ -127,15 +145,20 @@ function sortRows(rows: FlowConfigRow[], sort: SortOption): FlowConfigRow[] {
 export function FlowConfigTable({
   rows,
   allStepOptions,
+  compact = false,
 }: {
   rows: FlowConfigRow[]
   allStepOptions: AllStepOption[]
+  compact?: boolean
 }) {
   const router = useRouter()
   const [search, setSearch] = useState("")
   const [stageFilter, setStageFilter] = useState("all")
   const [divisionFilter, setDivisionFilter] = useState("all")
   const [sort, setSort] = useState<SortOption>("flow")
+  const [layoutView, setLayoutView] = useState<LayoutViewMode>("table")
+  const [pageMode, setPageMode] = useState<FlowPageMode>("view")
+  const [selectedCode, setSelectedCode] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({})
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -144,7 +167,7 @@ export function FlowConfigTable({
     return () => {
       if (toastTimer.current) clearTimeout(toastTimer.current)
     }
-  }, [])
+  }, [])  
 
   function showToast(message: string) {
     setToast(message)
@@ -158,6 +181,17 @@ export function FlowConfigTable({
         rows.map((row) => [row.code, nameOverrides[row.code] ?? row.name])
       ),
     [rows, nameOverrides]
+  )
+
+  const nameLookup = useMemo(
+    () =>
+      buildNameLookup(
+        rows.map((row) => ({
+          code: row.code,
+          name: nameByCode.get(row.code) ?? row.name,
+        }))
+      ),
+    [rows, nameByCode]
   )
 
   const filteredRows = useMemo(() => {
@@ -184,55 +218,122 @@ export function FlowConfigTable({
     return sortRows(filtered, sort)
   }, [rows, search, stageFilter, divisionFilter, sort])
 
+  const groupByStage = sort === "flow" || sort === "stage-asc"
+
+  const tableBodyItems = useMemo(() => {
+    if (!groupByStage) {
+      return filteredRows.map((row) => ({ type: "row" as const, row }))
+    }
+    const items: Array<
+      { type: "stage"; stage: number } | { type: "row"; row: FlowConfigRow }
+    > = []
+    let lastStage: number | null = null
+    for (const row of filteredRows) {
+      if (row.stage !== lastStage) {
+        items.push({ type: "stage", stage: row.stage })
+        lastStage = row.stage
+      }
+      items.push({ type: "row", row })
+    }
+    return items
+  }, [filteredRows, groupByStage])
+
+  const selectedRow = selectedCode
+    ? rows.find((row) => row.code === selectedCode) ?? null
+    : null
+
+  const drawerIsEdit = pageMode === "edit"
+
+  function openRow(code: string) {
+    if (pageMode !== "edit") return
+    setSelectedCode(code)
+  }
+
+  function closeDrawer() {
+    setSelectedCode(null)
+  }
+
+  function handlePageModeChange(mode: FlowPageMode) {
+    setPageMode(mode)
+    if (mode === "view") {
+      closeDrawer()
+    }
+  }
   const hasActiveFilters =
     search.trim() !== "" || stageFilter !== "all" || divisionFilter !== "all"
 
-  async function handleRename(stepCode: string, name: string) {
-    const result = await updateStepDefinitionName(stepCode, name)
-    if (result?.success) {
-      setNameOverrides((prev) => ({ ...prev, [stepCode]: name }))
-      showToast("Nama tersimpan")
-      router.refresh()
-    } else {
-      showToast(result?.error ? `Gagal: ${result.error}` : "Gagal menyimpan")
-    }
-    return result?.success ?? false
-  }
-
-  async function handlePrerequisitesSave(stepCode: string, prerequisites: string[]) {
-    const result = await updateStepPrerequisites(stepCode, prerequisites)
-    if (result.success) {
-      showToast("Prerequisites tersimpan")
-      router.refresh()
-    } else {
-      showToast(`Gagal: ${result.error}`)
-    }
-    return result.success
-  }
-
-  async function handleUnlocksSave(sourceStepCode: string, unlocksSteps: string[]) {
-    const result = await updateStepUnlocks(sourceStepCode, unlocksSteps)
-    if (result.success) {
-      showToast("Memicu step tersimpan")
-      router.refresh()
-    } else {
-      showToast(`Gagal: ${result.error}`)
-    }
-    return result.success
-  }
-
-  async function handleSubstepsSave(
+  async function handleSaveStep(
     stepCode: string,
-    substeps: SubstepDefinition[]
+    draft: FlowStepDraft,
+    original: FlowStepDraft
   ) {
-    const result = await updateStepSubsteps(stepCode, substeps)
-    if (result.success) {
-      showToast("Sub-step tersimpan")
-      router.refresh()
-    } else {
-      showToast(`Gagal: ${result.error}`)
+    let ok = true
+
+    if (draft.name.trim() !== original.name) {
+      const result = await updateStepDefinitionName(stepCode, draft.name.trim())
+      if (result?.success) {
+        setNameOverrides((prev) => ({ ...prev, [stepCode]: draft.name.trim() }))
+      } else {
+        showToast(result?.error ? `Gagal: ${result.error}` : "Gagal menyimpan nama")
+        ok = false
+      }
     }
-    return result.success
+    if (JSON.stringify(draft.prerequisites) !== JSON.stringify(original.prerequisites)) {
+      const result = await updateStepPrerequisites(stepCode, draft.prerequisites)
+      if (!result.success) {
+        showToast(`Gagal: ${result.error}`)
+        ok = false
+      }
+    }
+    if (JSON.stringify(draft.unlocksSteps) !== JSON.stringify(original.unlocksSteps)) {
+      const result = await updateStepUnlocks(stepCode, draft.unlocksSteps)
+      if (!result.success) {
+        showToast(`Gagal: ${result.error}`)
+        ok = false
+      }
+    }
+    if (
+      draft.completionMode !== original.completionMode ||
+      JSON.stringify(draft.checklistItems) !== JSON.stringify(original.checklistItems)
+    ) {
+      const result = await updateStepCompletionConfig(stepCode, {
+        completionMode: draft.completionMode,
+        checklistItems: draft.checklistItems,
+      })
+      if (!result.success) {
+        showToast(`Gagal: ${result.error}`)
+        ok = false
+      }
+    }
+    const cleanedSubsteps = draft.substeps
+      .map((s, i) => ({
+        key: s.key.trim(),
+        label: s.label.trim(),
+        sortOrder: i + 1,
+        kind: s.kind ?? "required",
+      }))
+      .filter((s) => s.label)
+    const cleanedOriginal = original.substeps
+      .map((s, i) => ({
+        key: s.key.trim(),
+        label: s.label.trim(),
+        sortOrder: i + 1,
+        kind: s.kind ?? "required",
+      }))
+      .filter((s) => s.label)
+    if (JSON.stringify(cleanedSubsteps) !== JSON.stringify(cleanedOriginal)) {
+      const result = await updateStepSubsteps(stepCode, cleanedSubsteps)
+      if (!result.success) {
+        showToast(`Gagal: ${result.error}`)
+        ok = false
+      }
+    }
+
+    if (ok) {
+      showToast("Perubahan tersimpan")
+      router.refresh()
+    }
+    return ok
   }
 
   if (rows.length === 0) {
@@ -243,17 +344,73 @@ export function FlowConfigTable({
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className={cn("mb-3 flex flex-col gap-3", compact && "mb-2 gap-2")}>
+        <FlowConfigLegend compact={compact} />
+        <FlowValidationBanner rows={rows} />
+      </div>
+
+      <div
+        className={cn(
+          "mb-3 flex flex-wrap items-center gap-2",
+          compact && "mb-2 gap-1.5"
+        )}
+      >
+        <div className="flex rounded-lg border p-0.5">
+          <Button
+            type="button"
+            variant={pageMode === "view" ? "secondary" : "ghost"}
+            size="sm"
+            className="h-7 gap-1 px-2 text-xs"
+            onClick={() => handlePageModeChange("view")}
+          >
+            <Eye className="size-3.5" />
+            View
+          </Button>
+          <Button
+            type="button"
+            variant={pageMode === "edit" ? "secondary" : "ghost"}
+            size="sm"
+            className="h-7 gap-1 px-2 text-xs"
+            onClick={() => handlePageModeChange("edit")}
+          >
+            <Pencil className="size-3.5" />
+            Edit
+          </Button>
+        </div>
+
+        <div className="flex rounded-lg border p-0.5">
+          <Button
+            type="button"
+            variant={layoutView === "table" ? "secondary" : "ghost"}
+            size="sm"
+            className="h-7 gap-1 px-2 text-xs"
+            onClick={() => setLayoutView("table")}
+          >
+            <Table2 className="size-3.5" />
+            Tabel
+          </Button>
+          <Button
+            type="button"
+            variant={layoutView === "flow" ? "secondary" : "ghost"}
+            size="sm"
+            className="h-7 gap-1 px-2 text-xs"
+            onClick={() => setLayoutView("flow")}
+          >
+            <GitBranch className="size-3.5" />
+            Flow
+          </Button>
+        </div>
+
         <Input
           type="search"
-          placeholder="Cari code, nama, divisi, atau tahap…"
+          placeholder="Cari code, nama, divisi, tahap\u2026"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
+          className={cn("max-w-sm", compact && "h-8 max-w-xs text-sm")}
         />
 
         <Select value={stageFilter} onValueChange={setStageFilter}>
-          <SelectTrigger className="w-[200px]" size="sm">
+          <SelectTrigger className={cn("w-[200px]", compact && "h-8 w-[160px] text-xs")} size="sm">
             <SelectValue placeholder="Tahap" />
           </SelectTrigger>
           <SelectContent>
@@ -267,7 +424,7 @@ export function FlowConfigTable({
         </Select>
 
         <Select value={divisionFilter} onValueChange={setDivisionFilter}>
-          <SelectTrigger className="w-[180px]" size="sm">
+          <SelectTrigger className={cn("w-[180px]", compact && "h-8 w-[140px] text-xs")} size="sm">
             <SelectValue placeholder="Divisi" />
           </SelectTrigger>
           <SelectContent>
@@ -283,7 +440,7 @@ export function FlowConfigTable({
         </Select>
 
         <Select value={sort} onValueChange={(value) => setSort(value as SortOption)}>
-          <SelectTrigger className="w-[180px]" size="sm">
+          <SelectTrigger className={cn("w-[180px]", compact && "h-8 w-[140px] text-xs")} size="sm">
             <SelectValue placeholder="Urutkan" />
           </SelectTrigger>
           <SelectContent>
@@ -296,50 +453,133 @@ export function FlowConfigTable({
         </Select>
       </div>
 
+      <div
+        className={cn(
+          "mb-3 rounded-lg border px-3 py-2 text-xs",
+          pageMode === "view"
+            ? "border-muted bg-muted/30 text-muted-foreground"
+            : "border-primary/25 bg-primary/5 text-foreground"
+        )}
+      >
+        {pageMode === "view" ? (
+          <span>
+            <Eye className="mr-1.5 inline size-3.5 align-text-bottom" />
+            <strong>Mode lihat</strong> — tabel read-only, baris tidak bisa diklik. Switch ke{" "}
+            <strong>Edit</strong> untuk ubah step.
+          </span>
+        ) : (
+          <span>
+            <Pencil className="mr-1.5 inline size-3.5 align-text-bottom text-primary" />
+            <strong>Mode edit</strong> — klik baris langsung buka panel edit & simpan
+            perubahan.
+          </span>
+        )}
+      </div>
+
       {(hasActiveFilters || sort !== "flow") && (
         <p className="mb-3 text-xs text-muted-foreground">
           Menampilkan {filteredRows.length} dari {rows.length} step
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full min-w-[1000px] text-sm">
-          <thead>
-            <tr className="border-b bg-muted/40 text-left">
-              <th className="px-3 py-2 font-medium">Code</th>
-              <th className="px-3 py-2 font-medium">Nama Step</th>
-              <th className="px-3 py-2 font-medium">Divisi</th>
-              <th className="px-3 py-2 font-medium">Tahap</th>
-              <th className="px-3 py-2 font-medium">Prerequisites (harus selesai dulu)</th>
-              <th className="px-3 py-2 font-medium">Memicu Step</th>
-              <th className="px-3 py-2 font-medium">Sub-step</th>
-              <th className="px-3 py-2 font-medium">Trigger Reminder</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRows.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">
-                  Tidak ada step yang cocok dengan filter atau pencarian.
-                </td>
+      {layoutView === "flow" ? (
+        <FlowGraphView
+          rows={filteredRows}
+          nameByCode={nameByCode}
+          pageMode={pageMode}
+          onOpenNode={openRow}
+          compact={compact}
+        />
+      ) : (
+        <div
+          className={cn(
+            "rounded-lg border",
+            pageMode === "edit" && "border-primary/20",
+            compact && "rounded-md"
+          )}
+        >
+          <table className={cn("w-full table-auto text-sm", compact && "text-xs")}>
+            <thead>
+              <tr className="border-b bg-muted/40 text-left">
+                <th className={cn("px-3 py-2 font-medium whitespace-nowrap", compact && "px-2 py-1.5")}>Code</th>
+                <th className={cn("px-3 py-2 font-medium min-w-[12rem]", compact && "px-2 py-1.5")}>Nama Step</th>
+                <th className={cn("px-3 py-2 font-medium whitespace-nowrap", compact && "px-2 py-1.5")}>Divisi</th>
+                <th className={cn("px-3 py-2 font-medium whitespace-nowrap", compact && "px-2 py-1.5")}>Tahap</th>
+                <th className={cn("px-3 py-2 font-medium whitespace-nowrap", compact && "px-2 py-1.5")}>Mode</th>
+                <th className={cn("px-3 py-2 font-medium min-w-[10rem]", compact && "px-2 py-1.5")}>Prasyarat</th>
+                <th className={cn("px-3 py-2 font-medium min-w-[8rem]", compact && "px-2 py-1.5")}>Memicu</th>
+                <th className={cn("px-3 py-2 font-medium min-w-[8rem]", compact && "px-2 py-1.5")}>Sub-step</th>
+                <th className={cn("px-3 py-2 font-medium min-w-[10rem]", compact && "px-2 py-1.5")}>
+                  Trigger
+                </th>
+                {pageMode === "edit" && (
+                  <th className={cn("px-3 py-2 font-medium w-10", compact && "px-2 py-1.5")} aria-label="Edit" />
+                )}
               </tr>
-            ) : (
-              filteredRows.map((row) => (
-                <FlowConfigTableRow
-                  key={row.code}
-                  row={row}
-                  displayName={nameByCode.get(row.code) ?? row.name}
-                  allStepOptions={allStepOptions}
-                  onRename={handleRename}
-                  onPrerequisitesSave={handlePrerequisitesSave}
-                  onUnlocksSave={handleUnlocksSave}
-                  onSubstepsSave={handleSubstepsSave}
-                />
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {filteredRows.length === 0 ? (
+                <tr>
+                  <td colSpan={pageMode === "edit" ? 10 : 9} className="px-3 py-6 text-center text-muted-foreground">
+                    Tidak ada step yang cocok dengan filter atau pencarian.
+                  </td>
+                </tr>
+              ) : (
+                tableBodyItems.map((item, index) =>
+                  item.type === "stage" ? (
+                    <tr key={`stage-${item.stage}`} className="bg-muted/30">
+                      <td
+                        colSpan={pageMode === "edit" ? 10 : 9}
+                        className={cn(
+                          "px-3 py-2 text-xs font-semibold uppercase tracking-wide",
+                          compact && "px-2 py-1.5"
+                        )}
+                      >
+                        Tahap {item.stage}
+                        {STAGE_LABELS[item.stage]
+                          ? `\u2014 ${STAGE_LABELS[item.stage]}`
+                          : ""}
+                      </td>
+                    </tr>
+                  ) : (
+                    <FlowConfigTableRow
+                      key={item.row.code}
+                      row={item.row}
+                      displayName={nameByCode.get(item.row.code) ?? item.row.name}
+                      nameLookup={nameLookup}
+                      compact={compact}
+                      onOpen={
+                        pageMode === "edit" ? () => openRow(item.row.code) : undefined
+                      }
+                      pageMode={pageMode}
+                    />
+                  )
+                )
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {selectedRow && drawerIsEdit && (
+        <FlowStepEditDrawer
+          row={selectedRow}
+          displayName={nameByCode.get(selectedRow.code) ?? selectedRow.name}
+          allStepOptions={allStepOptions}
+          open
+          onOpenChange={(open) => {
+            if (!open) closeDrawer()
+          }}
+          handlers={{
+            onSave: handleSaveStep,
+            onDuplicateSuccess: () => router.refresh(),
+            onResetSuccess: () => router.refresh(),
+          }}
+          onSaved={() => {
+            closeDrawer()
+          }}
+        />
+      )}
 
       {toast && (
         <div
@@ -356,30 +596,36 @@ export function FlowConfigTable({
 function FlowConfigTableRow({
   row,
   displayName,
-  allStepOptions,
-  onRename,
-  onPrerequisitesSave,
-  onUnlocksSave,
-  onSubstepsSave,
+  nameLookup,
+  compact = false,
+  pageMode,
+  onOpen,
 }: {
   row: FlowConfigRow
   displayName: string
-  allStepOptions: AllStepOption[]
-  onRename: (stepCode: string, name: string) => Promise<boolean>
-  onPrerequisitesSave: (stepCode: string, prerequisites: string[]) => Promise<boolean>
-  onUnlocksSave: (sourceStepCode: string, unlocksSteps: string[]) => Promise<boolean>
-  onSubstepsSave: (stepCode: string, substeps: SubstepDefinition[]) => Promise<boolean>
+  nameLookup: Map<string, string>
+  compact?: boolean
+  pageMode: FlowPageMode
+  onOpen?: () => void
 }) {
   const division = row.division as Division
   const badgeStyle = DIVISION_BADGE_STYLES[division]
+  const cell = compact ? "px-2 py-1.5" : "px-3 py-2"
+  const stepDef = getStep(row.code)
+  const isInteractive = pageMode === "edit" && !!onOpen
 
   return (
-    <tr className="border-b align-top last:border-b-0">
-      <td className="px-3 py-2 font-mono text-xs">{row.code}</td>
-      <td className="px-3 py-2">
-        <StepNameCell stepCode={row.code} name={displayName} onRename={onRename} />
-      </td>
-      <td className="px-3 py-2">
+    <tr
+      className={cn(
+        "border-b align-top last:border-b-0",
+        isInteractive && "cursor-pointer transition-colors hover:bg-primary/5"
+      )}
+      onClick={isInteractive ? onOpen : undefined}
+      title={isInteractive ? "Klik untuk edit step" : undefined}
+    >
+      <td className={cn(cell, "font-mono text-xs")}>{row.code}</td>
+      <td className={cn(cell, "font-medium leading-snug")}>{displayName}</td>
+      <td className={cell}>
         {badgeStyle ? (
           <span
             className={cn(
@@ -393,500 +639,47 @@ function FlowConfigTableRow({
           row.division
         )}
       </td>
-      <td className="px-3 py-2 text-xs">
+      <td className={cn(cell, "text-xs")}>
         <span className="font-medium">{row.stage}</span>
-        {STAGE_LABELS[row.stage] && (
-          <p className="text-muted-foreground">{STAGE_LABELS[row.stage]}</p>
+      </td>
+      <td className={cell}>
+        {row.substeps.length > 0 ? (
+          <span
+            className={cn(
+              "inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold",
+              COMPLETION_MODE_BADGES.normal
+            )}
+          >
+            Sub-step
+          </span>
+        ) : (
+          <span
+            className={cn(
+              "inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold",
+              COMPLETION_MODE_BADGES[row.completionMode]
+            )}
+          >
+            {COMPLETION_MODE_LABELS[row.completionMode]}
+          </span>
         )}
       </td>
-      <td className="px-3 py-2">
-        <PrerequisitesCell
-          stepCode={row.code}
-          prerequisites={row.prerequisites}
-          allStepOptions={allStepOptions}
-          onSave={onPrerequisitesSave}
-        />
+      <td className={cell}>
+        <DependencyDisplay codes={row.prerequisites} names={nameLookup} />
       </td>
-      <td className="px-3 py-2">
-        <UnlocksStepsCell
-          stepCode={row.code}
-          unlocksSteps={row.unlocksSteps}
-          allStepOptions={allStepOptions}
-          onSave={onUnlocksSave}
-        />
+      <td className={cell}>
+        <UnlockDisplay codes={row.unlocksSteps} names={nameLookup} />
       </td>
-      <td className="px-3 py-2">
-        <SubstepsCell
-          stepCode={row.code}
-          substeps={row.substeps}
-          onSave={onSubstepsSave}
-        />
+      <td className={cell}>
+        <SubstepDisplay substeps={row.substeps} />
       </td>
-      <td className="px-3 py-2 text-xs text-muted-foreground italic">
-        {row.triggerDescription}
+      <td className={cn(cell, compact ? "text-xs" : "")}>
+        <TriggerDisplay stepDef={stepDef} />
       </td>
+      {pageMode === "edit" && (
+        <td className={cn(cell, "text-muted-foreground")}>
+          <Pencil className="size-3.5 opacity-40" aria-hidden />
+        </td>
+      )}
     </tr>
-  )
-}
-
-function UnlocksStepsCell({
-  stepCode,
-  unlocksSteps,
-  allStepOptions,
-  onSave,
-}: {
-  stepCode: string
-  unlocksSteps: string[]
-  allStepOptions: AllStepOption[]
-  onSave: (sourceStepCode: string, unlocksSteps: string[]) => Promise<boolean>
-}) {
-  return (
-    <StepCodesPickerCell
-      stepCode={stepCode}
-      selectedCodes={unlocksSteps}
-      allStepOptions={allStepOptions}
-      badgeVariant="secondary"
-      editLabel={`Edit memicu step ${stepCode}`}
-      dialogTitle={`Memicu Step — ${stepCode}`}
-      dialogDescription={`Pilih step yang akan aktif setelah ${stepCode} selesai (menambah ${stepCode} ke prerequisites step tersebut).`}
-      onSave={(codes) => onSave(stepCode, codes)}
-    />
-  )
-}
-
-function PrerequisitesCell({
-  stepCode,
-  prerequisites,
-  allStepOptions,
-  onSave,
-}: {
-  stepCode: string
-  prerequisites: string[]
-  allStepOptions: AllStepOption[]
-  onSave: (stepCode: string, prerequisites: string[]) => Promise<boolean>
-}) {
-  return (
-    <StepCodesPickerCell
-      stepCode={stepCode}
-      selectedCodes={prerequisites}
-      allStepOptions={allStepOptions}
-      badgeVariant="outline"
-      editLabel={`Edit prerequisites ${stepCode}`}
-      dialogTitle={`Prerequisites — ${stepCode}`}
-      dialogDescription={`Pilih step yang harus selesai sebelum ${stepCode} bisa aktif.`}
-      warning={(draft) =>
-        stepCode !== "M1" && draft.length === 0
-          ? "Tanpa prerequisites, step ini akan langsung aktif saat project dibuat (sama seperti M1)."
-          : null
-      }
-      onSave={(codes) => onSave(stepCode, codes)}
-    />
-  )
-}
-
-function StepCodesPickerCell({
-  stepCode,
-  selectedCodes,
-  allStepOptions,
-  badgeVariant,
-  editLabel,
-  dialogTitle,
-  dialogDescription,
-  warning,
-  onSave,
-}: {
-  stepCode: string
-  selectedCodes: string[]
-  allStepOptions: AllStepOption[]
-  badgeVariant: "outline" | "secondary"
-  editLabel: string
-  dialogTitle: string
-  dialogDescription: string
-  warning?: (draft: string[]) => string | null
-  onSave: (codes: string[]) => Promise<boolean>
-}) {
-  const [open, setOpen] = useState(false)
-  const [draft, setDraft] = useState<string[]>(selectedCodes)
-  const [isPending, startTransition] = useTransition()
-
-  useEffect(() => {
-    if (open) setDraft(selectedCodes)
-  }, [open, selectedCodes])
-
-  const groupedByStage = useMemo(() => {
-    const groups = new Map<number, AllStepOption[]>()
-    for (const option of allStepOptions) {
-      if (option.code === stepCode) continue
-      const list = groups.get(option.stage) ?? []
-      list.push(option)
-      groups.set(option.stage, list)
-    }
-    return [...groups.entries()].sort(([a], [b]) => a - b)
-  }, [allStepOptions, stepCode])
-
-  const warningMessage = warning?.(draft) ?? null
-
-  function toggle(code: string, checked: boolean) {
-    setDraft((prev) =>
-      checked ? [...prev, code] : prev.filter((c) => c !== code)
-    )
-  }
-
-  function handleSave() {
-    startTransition(async () => {
-      const success = await onSave(draft)
-      if (success) setOpen(false)
-    })
-  }
-
-  return (
-    <>
-      <div className="flex items-start gap-1.5">
-        <div className="flex min-w-0 flex-1 flex-wrap gap-1">
-          {selectedCodes.length === 0 ? (
-            <span className="text-muted-foreground">—</span>
-          ) : (
-            selectedCodes.map((code) => (
-              <Badge key={code} variant={badgeVariant}>
-                {code}
-              </Badge>
-            ))
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label={editLabel}
-        >
-          <Pencil className="size-3.5" />
-        </button>
-      </div>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{dialogTitle}</DialogTitle>
-            <DialogDescription>{dialogDescription}</DialogDescription>
-          </DialogHeader>
-
-          <div className="flex flex-col gap-4 py-1">
-            {groupedByStage.map(([stage, options]) => (
-              <div key={stage}>
-                <p className="mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Tahap {stage}
-                  {STAGE_LABELS[stage] ? ` — ${STAGE_LABELS[stage]}` : ""}
-                </p>
-                <div className="flex flex-col gap-2">
-                  {options.map((option) => {
-                    const checked = draft.includes(option.code)
-                    return (
-                      <label
-                        key={option.code}
-                        className="flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 hover:bg-muted/50"
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(value) =>
-                            toggle(option.code, value === true)
-                          }
-                          disabled={isPending}
-                          className="mt-0.5"
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="font-mono text-xs font-semibold">
-                            {option.code}
-                          </span>
-                          <span className="block text-sm leading-snug">
-                            {option.name}
-                          </span>
-                        </span>
-                      </label>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {warningMessage && (
-            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              {warningMessage}
-            </p>
-          )}
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={isPending}
-            >
-              Batal
-            </Button>
-            <Button type="button" onClick={handleSave} disabled={isPending}>
-              {isPending ? "Menyimpan…" : "Simpan"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  )
-}
-
-function SubstepsCell({
-  stepCode,
-  substeps,
-  onSave,
-}: {
-  stepCode: string
-  substeps: SubstepDefinition[]
-  onSave: (stepCode: string, substeps: SubstepDefinition[]) => Promise<boolean>
-}) {
-  const [open, setOpen] = useState(false)
-  const [draft, setDraft] = useState<SubstepDefinition[]>(substeps)
-  const [isPending, startTransition] = useTransition()
-
-  useEffect(() => {
-    if (open) setDraft(substeps)
-  }, [open, substeps])
-
-  function addRow() {
-    setDraft((prev) => [
-      ...prev,
-      {
-        key: slugifySubstepKey(`substep_${prev.length + 1}`),
-        label: "",
-        sortOrder: prev.length + 1,
-      },
-    ])
-  }
-
-  function updateLabel(index: number, label: string) {
-    setDraft((prev) =>
-      prev.map((row, i) =>
-        i === index
-          ? {
-              ...row,
-              label,
-              key: row.key || slugifySubstepKey(label),
-            }
-          : row
-      )
-    )
-  }
-
-  function removeRow(index: number) {
-    setDraft((prev) =>
-      prev
-        .filter((_, i) => i !== index)
-        .map((row, i) => ({ ...row, sortOrder: i + 1 }))
-    )
-  }
-
-  function moveRow(index: number, direction: -1 | 1) {
-    setDraft((prev) => {
-      const next = [...prev]
-      const target = index + direction
-      if (target < 0 || target >= next.length) return prev
-      ;[next[index], next[target]] = [next[target], next[index]]
-      return next.map((row, i) => ({ ...row, sortOrder: i + 1 }))
-    })
-  }
-
-  function handleSave() {
-    const cleaned = draft
-      .map((row, index) => ({
-        key: row.key.trim() || slugifySubstepKey(row.label),
-        label: row.label.trim(),
-        sortOrder: index + 1,
-      }))
-      .filter((row) => row.label)
-
-    startTransition(async () => {
-      const success = await onSave(stepCode, cleaned)
-      if (success) setOpen(false)
-    })
-  }
-
-  return (
-    <>
-      <div className="flex items-start gap-1.5">
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          {substeps.length === 0 ? (
-            <span className="text-muted-foreground">—</span>
-          ) : (
-            substeps.map((substep, index) => (
-              <span key={substep.key} className="text-xs">
-                {index + 1}. {substep.label}
-              </span>
-            ))
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label={`Edit sub-step ${stepCode}`}
-        >
-          <Pencil className="size-3.5" />
-        </button>
-      </div>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Sub-step — {stepCode}</DialogTitle>
-            <DialogDescription>
-              Tombol aksi berurutan dalam satu step. Step baru dianggap selesai
-              setelah semua sub-step selesai, baru unlock step berikutnya.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex flex-col gap-2 py-1">
-            {draft.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Belum ada sub-step. Step ini pakai satu tombol &ldquo;Tandai Selesai&rdquo;.
-              </p>
-            ) : (
-              draft.map((row, index) => (
-                <div key={`${row.key}-${index}`} className="flex items-center gap-2">
-                  <span className="w-5 text-xs text-muted-foreground">{index + 1}.</span>
-                  <Input
-                    value={row.label}
-                    placeholder="Label tombol, mis. Sudah ditagih"
-                    onChange={(e) => updateLabel(index, e.target.value)}
-                    disabled={isPending}
-                  />
-                  <div className="flex shrink-0 gap-0.5">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      disabled={isPending || index === 0}
-                      onClick={() => moveRow(index, -1)}
-                    >
-                      ↑
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      disabled={isPending || index === draft.length - 1}
-                      onClick={() => moveRow(index, 1)}
-                    >
-                      ↓
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2 text-destructive"
-                      disabled={isPending}
-                      onClick={() => removeRow(index)}
-                    >
-                      ×
-                    </Button>
-                  </div>
-                </div>
-              ))
-            )}
-            <Button type="button" variant="outline" size="sm" onClick={addRow} disabled={isPending}>
-              + Tambah sub-step
-            </Button>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
-              Batal
-            </Button>
-            <Button type="button" onClick={handleSave} disabled={isPending}>
-              {isPending ? "Menyimpan…" : "Simpan"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  )
-}
-
-function StepNameCell({
-  stepCode,
-  name,
-  onRename,
-}: {
-  stepCode: string
-  name: string
-  onRename: (stepCode: string, name: string) => Promise<boolean>
-}) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [value, setValue] = useState(name)
-  const [isPending, startTransition] = useTransition()
-  const skipBlurRef = useRef(false)
-
-  useEffect(() => {
-    if (!isEditing) setValue(name)
-  }, [name, isEditing])
-
-  function cancel() {
-    skipBlurRef.current = true
-    setValue(name)
-    setIsEditing(false)
-  }
-
-  function commit() {
-    if (skipBlurRef.current) {
-      skipBlurRef.current = false
-      return
-    }
-    const trimmed = value.trim()
-    if (!trimmed || trimmed === name) {
-      setValue(name)
-      setIsEditing(false)
-      return
-    }
-    startTransition(async () => {
-      const success = await onRename(stepCode, trimmed)
-      if (!success) setValue(name)
-      setIsEditing(false)
-    })
-  }
-
-  if (isEditing) {
-    return (
-      <Input
-        autoFocus
-        value={value}
-        disabled={isPending}
-        className="h-7 px-1.5 text-sm"
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault()
-            commit()
-          } else if (e.key === "Escape") {
-            e.preventDefault()
-            cancel()
-          }
-        }}
-      />
-    )
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => setIsEditing(true)}
-      className="group flex items-center gap-1.5 text-left"
-    >
-      <span className="font-medium leading-snug">{name}</span>
-      <Pencil
-        className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-        aria-hidden
-      />
-    </button>
   )
 }

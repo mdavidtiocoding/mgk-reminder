@@ -1,10 +1,10 @@
 import Link from "next/link"
 
+import { OutstandingBadge } from "@/components/layout/outstanding-badge"
 import { Button } from "@/components/ui/button"
 import { getMyTasks } from "@/lib/projects/tasks"
 import { type Division } from "@/lib/steps"
 import { createClient } from "@/lib/supabase/server"
-import { cn } from "@/lib/utils"
 
 type AppHeaderProps = {
   userName: string
@@ -29,27 +29,6 @@ async function fetchOutstandingCount(
   } catch {
     return 0
   }
-}
-
-function OutstandingBadge({
-  count,
-  className,
-}: {
-  count: number
-  className?: string
-}) {
-  if (count <= 0) return null
-
-  return (
-    <span
-      className={cn(
-        "inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-semibold text-white tabular-nums",
-        className
-      )}
-    >
-      {count > 99 ? "99+" : count}
-    </span>
-  )
 }
 
 export async function AppHeader({
@@ -96,4 +75,4 @@ export async function AppHeader({
   )
 }
 
-export { OutstandingBadge }
+export { OutstandingBadge } from "@/components/layout/outstanding-badge"

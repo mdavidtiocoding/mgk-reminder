@@ -1,6 +1,16 @@
 import { APP_TIMEZONE } from "@/lib/constants"
-import { parseTimeKey, todayDateKeyWib } from "@/lib/format"
-import { getDivisionLabel, getStep, type Division } from "@/lib/steps"
+import { dateToDateKeyWib, formatDateKey, parseTimeKey, todayDateKeyWib } from "@/lib/format"
+import { computeProjectSteps, type CompletionInfo } from "@/lib/projects/active-steps"
+import { loadSubstepCompletionsForProject } from "@/lib/projects/substep-data"
+import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
+import {
+  DATE_FIELD_LABELS,
+  getDivisionLabel,
+  getStep,
+  STEPS,
+  type DateField,
+  type Division,
+} from "@/lib/steps"
 import { createServiceClient } from "@/lib/supabase/admin"
 
 import { getGoogleOAuthConfig } from "./env"
@@ -20,6 +30,34 @@ type CalendarEventInput = {
 }
 
 type EventType = "step_unlock" | "followup"
+
+const CALENDAR_REMINDER_OVERRIDES = [
+  { method: "popup" as const, minutes: 30 },
+  { method: "popup" as const, minutes: 10 },
+  { method: "popup" as const, minutes: 0 },
+]
+
+function buildEventDateTimes(event: CalendarEventInput): { start: string; end: string } {
+  const { hour, minute } = parseTimeKey(event.timeKey ?? "09:00")
+  const start = wibDateTimeIso(event.dateKey, hour, minute)
+  const endMinute = minute + 30
+  const end = wibDateTimeIso(
+    event.dateKey,
+    hour + Math.floor(endMinute / 60),
+    endMinute % 60
+  )
+  return { start, end }
+}
+
+function getStepCodesUsingDateField(dateField: DateField): string[] {
+  return STEPS.filter((step) => {
+    const trigger = step.trigger
+    return (
+      (trigger.type === "before_date" || trigger.type === "after_date") &&
+      trigger.dateField === dateField
+    )
+  }).map((step) => step.code)
+}
 
 function normalizeRelation<T>(value: T | T[] | null): T | null {
   if (!value) return null
@@ -94,14 +132,7 @@ async function createCalendarEventForUser(
 ): Promise<string | null> {
   try {
     const accessToken = await getValidGoogleAccessToken(user)
-    const { hour, minute } = parseTimeKey(event.timeKey ?? "09:00")
-    const start = wibDateTimeIso(event.dateKey, hour, minute)
-    const endMinute = minute + 30
-    const end = wibDateTimeIso(
-      event.dateKey,
-      hour + Math.floor(endMinute / 60),
-      endMinute % 60
-    )
+    const { start, end } = buildEventDateTimes(event)
 
     const response = await fetch(
       "https://www.googleapis.com/calendar/v3/calendars/primary/events",
@@ -116,14 +147,9 @@ async function createCalendarEventForUser(
           description: event.description,
           start: { dateTime: start, timeZone: APP_TIMEZONE },
           end: { dateTime: end, timeZone: APP_TIMEZONE },
-          // useDefault must be false for overrides to apply (Google API).
           reminders: {
             useDefault: false,
-            overrides: [
-              { method: "popup", minutes: 30 },
-              { method: "popup", minutes: 10 },
-              { method: "popup", minutes: 0 },
-            ],
+            overrides: CALENDAR_REMINDER_OVERRIDES,
           },
         }),
       }
@@ -140,6 +166,51 @@ async function createCalendarEventForUser(
   } catch (error) {
     console.error("[google-calendar] create event error:", error)
     return null
+  }
+}
+
+async function patchCalendarEventForUser(
+  user: CalendarUser,
+  googleEventId: string,
+  event: CalendarEventInput
+): Promise<boolean> {
+  try {
+    const accessToken = await getValidGoogleAccessToken(user)
+    const { start, end } = buildEventDateTimes(event)
+
+    const response = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(
+        googleEventId
+      )}`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          summary: event.title,
+          description: event.description,
+          start: { dateTime: start, timeZone: APP_TIMEZONE },
+          end: { dateTime: end, timeZone: APP_TIMEZONE },
+          reminders: {
+            useDefault: false,
+            overrides: CALENDAR_REMINDER_OVERRIDES,
+          },
+        }),
+      }
+    )
+
+    if (!response.ok) {
+      const body = await response.text()
+      console.error("[google-calendar] patch event failed:", response.status, body)
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error("[google-calendar] patch event error:", error)
+    return false
   }
 }
 
@@ -396,4 +467,142 @@ export async function createFollowUpCalendarEvents(params: {
       actingUserId: params.actingUserId,
     }
   )
+}
+
+/**
+ * Move existing step_unlock Google Calendar events when a project anchor date
+ * changes (e.g. Ex Work reschedule). Creates missing events for active steps.
+ */
+export async function resyncCalendarEventsForDateField(params: {
+  projectId: string
+  dateField: DateField
+  actingUserId?: string
+  newDateValue?: string
+}): Promise<{ updated: number; created: number }> {
+  if (!getGoogleOAuthConfig()) return { updated: 0, created: 0 }
+
+  const service = createServiceClient()
+  if (!service) return { updated: 0, created: 0 }
+
+  const affectedStepCodes = getStepCodesUsingDateField(params.dateField)
+  if (affectedStepCodes.length === 0) return { updated: 0, created: 0 }
+
+  const [runtimeSteps, substepCompletions] = await Promise.all([
+    loadRuntimeSteps(service),
+    loadSubstepCompletionsForProject(service, params.projectId),
+  ])
+
+  const { data: project } = await service
+    .from("projects")
+    .select(
+      `
+      name,
+      status,
+      created_at,
+      ex_work_date,
+      etd_date,
+      eta_date,
+      mos_date,
+      customer:customers(name),
+      step_completions(step_code, completed_at)
+    `
+    )
+    .eq("id", params.projectId)
+    .single()
+
+  if (!project?.name || project.status !== "active") {
+    return { updated: 0, created: 0 }
+  }
+
+  const customerName =
+    normalizeRelation(project.customer as { name: string } | { name: string }[] | null)
+      ?.name ?? "—"
+
+  const completions: CompletionInfo[] = (project.step_completions ?? []).map((row) => ({
+    stepCode: row.step_code as string,
+    completedAt: row.completed_at as string,
+  }))
+
+  const computedSteps = computeProjectSteps(completions, {
+    createdAt: project.created_at as string,
+    ex_work_date: project.ex_work_date as string | null,
+    etd_date: project.etd_date as string | null,
+    eta_date: project.eta_date as string | null,
+    mos_date: project.mos_date as string | null,
+  }, {
+    steps: runtimeSteps,
+    substepCompletions,
+  })
+
+  const computedByCode = new Map(computedSteps.map((step) => [step.definition.code, step]))
+
+  const dateLabel = DATE_FIELD_LABELS[params.dateField]
+  const dateValue =
+    params.newDateValue ??
+    (project[params.dateField as keyof typeof project] as string | null | undefined)
+
+  const { data: calendarRows } = await service
+    .from("calendar_events")
+    .select("id, step_code, user_id, google_event_id")
+    .eq("project_id", params.projectId)
+    .eq("event_type", "step_unlock")
+    .eq("reminders_cleared", false)
+    .in("step_code", affectedStepCodes)
+
+  let updated = 0
+  const stepsWithEvents = new Set<string>()
+
+  for (const row of calendarRows ?? []) {
+    const stepCode = row.step_code as string
+    stepsWithEvents.add(stepCode)
+
+    const step = getStep(stepCode)
+    const computed = computedByCode.get(stepCode)
+    if (!step || !computed?.triggerAt) continue
+
+    const user = await getConnectedCalendarUser(row.user_id as string)
+    if (!user) continue
+
+    const eventDate = dateToDateKeyWib(computed.triggerAt)
+    const extraLines = [
+      `PIC: ${getDivisionLabel(step.division)}`,
+      ...(dateValue ? [`${dateLabel}: ${formatDateKey(dateValue)}`] : []),
+    ]
+
+    const ok = await patchCalendarEventForUser(user, row.google_event_id as string, {
+      title: `${step.code}: ${step.name} — ${project.name}`,
+      description: buildProjectDescription({
+        projectName: project.name as string,
+        customerName,
+        stepCode,
+        projectId: params.projectId,
+        extraLines,
+      }),
+      dateKey: eventDate,
+    })
+
+    if (ok) {
+      updated++
+    } else {
+      await service.from("calendar_events").delete().eq("id", row.id)
+    }
+  }
+
+  let created = 0
+  for (const stepCode of affectedStepCodes) {
+    if (stepsWithEvents.has(stepCode)) continue
+
+    const computed = computedByCode.get(stepCode)
+    if (computed?.status !== "active" || !computed.triggerAt) continue
+
+    const count = await createStepUnlockCalendarEvents({
+      projectId: params.projectId,
+      stepCode,
+      actingUserId: params.actingUserId,
+      eventDate: dateToDateKeyWib(computed.triggerAt),
+    })
+    created += count
+  }
+
+  return { updated, created }
 }

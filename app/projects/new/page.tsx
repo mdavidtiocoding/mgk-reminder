@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 
 import { CreateProjectForm } from "@/components/project/create-project-form"
-import { AppHeader } from "@/components/layout/app-header"
+import { AppShell } from "@/components/layout/app-shell"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/server"
 
@@ -29,11 +29,10 @@ export default async function CreateProjectPage() {
     .order("name")
 
   return (
-    <div className="flex flex-1 flex-col">
-      <AppHeader
-        userName={profile?.name ?? user.email ?? "User"}
-        division={profile?.division}
-      />
+    <AppShell
+      userName={profile?.name ?? user.email ?? "User"}
+      division={profile?.division}
+    >
       <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6 p-6">
         <Button variant="ghost" size="sm" className="w-fit" asChild>
           <Link href="/">
@@ -43,6 +42,6 @@ export default async function CreateProjectPage() {
         </Button>
         <CreateProjectForm customers={customers ?? []} />
       </main>
-    </div>
+    </AppShell>
   )
 }

@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache"
 
 import { requireAdmin } from "@/lib/auth/require-admin"
+import {
+  parseCompletionMode,
+  validateCompletionModeConfig,
+} from "@/lib/steps/completion-mode"
 
 type StepPrereq = { code: string; prerequisites: string[] }
 
@@ -189,9 +193,61 @@ export async function updateStepUnlocks(
   return applyPrerequisiteUpdates(supabase, updates)
 }
 
+export async function updateStepCompletionConfig(
+  stepCode: string,
+  config: {
+    completionMode: string
+    checklistItems: string[]
+  }
+): Promise<{ success: true } | { success: false; error: string }> {
+  const { supabase } = await requireAdmin()
+
+  const mode = parseCompletionMode(config.completionMode)
+  const checklistItems = config.checklistItems.map((item) => item.trim()).filter(Boolean)
+
+  const validationError = validateCompletionModeConfig(mode, checklistItems)
+  if (validationError) {
+    return { success: false, error: validationError }
+  }
+
+  const updatePayload = {
+    completion_mode: mode,
+    checklist_items: checklistItems.length > 0 ? checklistItems : null,
+  }
+
+  let result = await supabase
+    .from("step_definitions")
+    .update(updatePayload)
+    .eq("code", stepCode)
+    .select("code")
+    .maybeSingle()
+
+  if (result.error?.message?.includes("completion_mode")) {
+    result = await supabase
+      .from("step_definitions")
+      .update({ checklist_items: updatePayload.checklist_items })
+      .eq("code", stepCode)
+      .select("code")
+      .maybeSingle()
+  }
+
+  const { data, error } = result
+  if (error) return { success: false, error: error.message }
+  if (!data) {
+    return { success: false, error: "Step tidak ditemukan" }
+  }
+
+  revalidatePath("/settings/flow")
+  revalidatePath("/projects/[id]", "page")
+  revalidatePath("/")
+  revalidatePath("/tasks")
+
+  return { success: true }
+}
+
 export async function updateStepSubsteps(
   stepCode: string,
-  substeps: { key: string; label: string; sortOrder: number }[]
+  substeps: { key: string; label: string; sortOrder: number; kind?: "required" | "reminder" }[]
 ): Promise<{ success: true } | { success: false; error: string }> {
   const { supabase } = await requireAdmin()
 
@@ -200,6 +256,7 @@ export async function updateStepSubsteps(
       key: substep.key.trim(),
       label: substep.label.trim(),
       sort_order: substep.sortOrder || index + 1,
+      kind: substep.kind === "reminder" ? "reminder" : "required",
     }))
     .filter((substep) => substep.key && substep.label)
 
@@ -221,6 +278,158 @@ export async function updateStepSubsteps(
       success: false,
       error: "Update ditolak (jalankan database/add-substeps.sql)",
     }
+  }
+
+  revalidatePath("/settings/flow")
+  revalidatePath("/projects/[id]", "page")
+  revalidatePath("/")
+  revalidatePath("/tasks")
+
+  return { success: true }
+}
+
+export async function duplicateStepConfig(
+  sourceCode: string,
+  targetCode: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  const { supabase } = await requireAdmin()
+
+  if (sourceCode === targetCode) {
+    return { success: false, error: "Step sumber dan tujuan harus berbeda." }
+  }
+
+  const { data: rows, error: fetchError } = await supabase
+    .from("step_definitions")
+    .select("code, prerequisites, checklist_items, completion_mode, substeps")
+    .in("code", [sourceCode, targetCode])
+
+  if (fetchError) {
+    return { success: false, error: fetchError.message }
+  }
+
+  const source = rows?.find((row) => row.code === sourceCode)
+  const target = rows?.find((row) => row.code === targetCode)
+
+  if (!source) {
+    return { success: false, error: "Step sumber tidak ditemukan." }
+  }
+  if (!target) {
+    return { success: false, error: "Step tujuan tidak ditemukan." }
+  }
+
+  const prerequisites = (source.prerequisites as string[] | null) ?? []
+
+  const allRowsResult = await supabase
+    .from("step_definitions")
+    .select("code, prerequisites")
+
+  if (allRowsResult.error) {
+    return { success: false, error: allRowsResult.error.message }
+  }
+
+  const allSteps: StepPrereq[] = (allRowsResult.data ?? []).map((row) => ({
+    code: row.code,
+    prerequisites:
+      row.code === targetCode
+        ? prerequisites
+        : ((row.prerequisites as string[] | null) ?? []),
+  }))
+
+  const prereqMap = buildPrereqMap(allSteps)
+  if (wouldCreateCycle(targetCode, prerequisites, prereqMap)) {
+    return {
+      success: false,
+      error: "Prerequisites hasil salin akan membuat circular dependency.",
+    }
+  }
+
+  const updatePayload: Record<string, unknown> = {
+    prerequisites,
+    checklist_items: source.checklist_items,
+    substeps: source.substeps,
+  }
+
+  if (source.completion_mode != null) {
+    updatePayload.completion_mode = source.completion_mode
+  }
+
+  let result = await supabase
+    .from("step_definitions")
+    .update(updatePayload)
+    .eq("code", targetCode)
+    .select("code")
+    .maybeSingle()
+
+  if (result.error?.message?.includes("completion_mode")) {
+    const { substeps, prerequisites: prereqs, checklist_items } = updatePayload
+    result = await supabase
+      .from("step_definitions")
+      .update({ substeps, prerequisites: prereqs, checklist_items })
+      .eq("code", targetCode)
+      .select("code")
+      .maybeSingle()
+  }
+
+  const { data, error } = result
+  if (error) return { success: false, error: error.message }
+  if (!data) {
+    return { success: false, error: "Gagal menyalin ke step tujuan." }
+  }
+
+  revalidatePath("/settings/flow")
+  revalidatePath("/projects/[id]", "page")
+  revalidatePath("/")
+  revalidatePath("/tasks")
+
+  return { success: true }
+}
+
+export async function resetStepConfig(
+  stepCode: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  const { supabase } = await requireAdmin()
+  const { getStep } = await import("@/lib/steps")
+  const { inferCompletionMode } = await import("@/lib/steps/completion-mode")
+
+  const stepDef = getStep(stepCode)
+  if (!stepDef) {
+    return { success: false, error: "Step tidak ditemukan di workflow bawaan." }
+  }
+
+  const checklist = stepDef.checklist ?? []
+  const completionMode = inferCompletionMode(checklist, stepDef.completionMode ?? null)
+
+  const updatePayload: Record<string, unknown> = {
+    prerequisites: stepDef.prerequisites,
+    checklist_items: checklist.length > 0 ? checklist : null,
+    substeps: null,
+    completion_mode: completionMode,
+  }
+
+  let result = await supabase
+    .from("step_definitions")
+    .update(updatePayload)
+    .eq("code", stepCode)
+    .select("code")
+    .maybeSingle()
+
+  if (result.error?.message?.includes("completion_mode")) {
+    result = await supabase
+      .from("step_definitions")
+      .update({
+        prerequisites: stepDef.prerequisites,
+        checklist_items: updatePayload.checklist_items,
+        substeps: null,
+      })
+      .eq("code", stepCode)
+      .select("code")
+      .maybeSingle()
+  }
+
+  const { data, error } = result
+  if (error) return { success: false, error: error.message }
+  if (!data) {
+    return { success: false, error: "Step tidak ditemukan." }
   }
 
   revalidatePath("/settings/flow")

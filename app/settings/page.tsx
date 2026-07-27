@@ -8,7 +8,8 @@ import { AppConfigForm } from "@/components/settings/app-config-form"
 import { resolveGoogleRedirectUri } from "@/lib/google/env"
 import { PushNotificationToggle } from "@/components/notifications/push-toggle"
 import { GoogleCalendarConnect } from "@/components/settings/google-calendar-connect"
-import { AppHeader } from "@/components/layout/app-header"
+import { ThemePicker } from "@/components/auth/theme-picker"
+import { AppShell } from "@/components/layout/app-shell"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -19,6 +20,7 @@ import {
 } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { getAppThresholds } from "@/lib/app-config"
+import { getUiTheme } from "@/lib/ui/theme.server"
 import { createClient } from "@/lib/supabase/server"
 
 type SettingsPageProps = {
@@ -51,15 +53,28 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   const googleRedirectUriHint = resolveGoogleRedirectUri(requestUrl)
 
   const thresholds = isAdmin ? await getAppThresholds(supabase) : null
+  const theme = await getUiTheme()
 
   return (
-    <div className="flex flex-1 flex-col">
-      <AppHeader
-        userName={profile?.name ?? user.email ?? "User"}
-        division={profile?.division}
-      />
+    <AppShell
+      userName={profile?.name ?? user.email ?? "User"}
+      division={profile?.division}
+    >
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-6">
         <h2 className="text-base font-medium">Settings</h2>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Tampilan UI</CardTitle>
+            <CardDescription>
+              Pilih Classic (default) atau Premium (preview redesign). Bisa
+              diubah kapan saja — logout tidak perlu.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ThemePicker initialTheme={theme} />
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -170,6 +185,6 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           </>
         )}
       </main>
-    </div>
+    </AppShell>
   )
 }

@@ -1,6 +1,8 @@
 import Link from "next/link"
 
 import { MarkDoneDialog } from "@/components/project/mark-done-dialog"
+import { StepChecklistCompletion } from "@/components/project/step-checklist-completion"
+import { StepRescheduleNotice } from "@/components/project/step-reschedule-notice"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -11,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import type { MyTask } from "@/lib/projects/tasks"
+import { usesInlineChecklist } from "@/lib/steps/inline-checklist"
 import { cn } from "@/lib/utils"
 
 type TaskCardProps = {
@@ -19,6 +22,12 @@ type TaskCardProps = {
 
 export function TaskCard({ task }: TaskCardProps) {
   const hasSubsteps = task.substeps.length > 0
+  const inlineChecklist = usesInlineChecklist({
+    completionMode: task.completionMode,
+    checklist: task.checklist,
+    hasOutcome: task.hasOutcome,
+    dateInputs: task.dateInputs,
+  })
 
   return (
     <Card>
@@ -43,6 +52,13 @@ export function TaskCard({ task }: TaskCardProps) {
       <CardContent className="flex flex-col gap-3">
         <p className="text-sm leading-snug">{task.stepName}</p>
         <p className="text-xs text-muted-foreground">PIC: {task.divisionLabel}</p>
+        {task.lastRescheduleDate && (
+          <StepRescheduleNotice
+            rescheduleDate={task.lastRescheduleDate}
+            rescheduledAt={task.lastRescheduleAt}
+            className="text-xs"
+          />
+        )}
         <p
           className={cn(
             "text-xs",
@@ -61,12 +77,22 @@ export function TaskCard({ task }: TaskCardProps) {
             tindakan di halaman detail project
           </p>
         )}
+        {inlineChecklist && !hasSubsteps && task.canComplete && task.checklist && (
+          <StepChecklistCompletion
+            projectId={task.projectId}
+            stepCode={task.stepCode}
+            checklist={task.checklist}
+            completionMode={task.completionMode}
+            compact
+          />
+        )}
         <div className="flex flex-wrap gap-2">
-          {!hasSubsteps && task.canComplete && (
+          {!hasSubsteps && task.canComplete && !inlineChecklist && (
             <MarkDoneDialog
               projectId={task.projectId}
               stepCode={task.stepCode}
               stepName={task.stepName}
+              completionMode={task.completionMode}
               checklist={task.checklist}
               dateInputs={task.dateInputs}
               hasOutcome={task.hasOutcome}

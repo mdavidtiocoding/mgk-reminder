@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react"
 import { listUsers } from "@/app/actions/users"
 import { CreateUserForm } from "@/components/settings/create-user-form"
 import { UsersTable } from "@/components/settings/users-table"
-import { AppHeader } from "@/components/layout/app-header"
+import { AppShell } from "@/components/layout/app-shell"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -21,11 +21,10 @@ export default async function UserManagementPage() {
   const users = await listUsers()
 
   return (
-    <div className="flex flex-1 flex-col">
-      <AppHeader
-        userName={profile?.name ?? user.email ?? "User"}
-        division={profile?.division}
-      />
+    <AppShell
+      userName={profile?.name ?? user.email ?? "User"}
+      division={profile?.division}
+    >
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6">
         <Button variant="ghost" size="sm" className="w-fit" asChild>
           <Link href="/settings">
@@ -72,6 +71,6 @@ export default async function UserManagementPage() {
           </CardContent>
         </Card>
       </main>
-    </div>
+    </AppShell>
   )
 }

@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { ProjectStatus } from "@/lib/steps"
+import { cn } from "@/lib/utils"
 
 type Customer = {
   id: string
@@ -37,6 +38,8 @@ type ProjectHeaderActionsProps = {
   status: ProjectStatus
   customers: Customer[]
   isAdmin: boolean
+  /** Premium project hero — light controls on dark background */
+  tone?: "default" | "dark"
 }
 
 const STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
@@ -52,6 +55,7 @@ export function ProjectHeaderActions({
   status,
   customers,
   isAdmin,
+  tone = "default",
 }: ProjectHeaderActionsProps) {
   const router = useRouter()
   const [editOpen, setEditOpen] = useState(false)
@@ -118,6 +122,8 @@ export function ProjectHeaderActions({
     })
   }
 
+  const isDark = tone === "dark"
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       {isAdmin && (
@@ -126,7 +132,14 @@ export function ProjectHeaderActions({
           onValueChange={(v) => handleStatusChange(v as ProjectStatus)}
           disabled={isPending}
         >
-          <SelectTrigger className="h-8 w-[140px]" size="sm">
+          <SelectTrigger
+            className={cn(
+              "h-8 w-[140px]",
+              isDark &&
+                "border-white/30 bg-white/10 text-white hover:bg-white/15 [&_svg]:text-white/80"
+            )}
+            size="sm"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -141,8 +154,12 @@ export function ProjectHeaderActions({
 
       <Button
         type="button"
-        variant="outline"
+        variant={isDark ? "ghost" : "outline"}
         size="sm"
+        className={cn(
+          isDark &&
+            "border border-white/30 text-white hover:bg-white/10 hover:text-white"
+        )}
         onClick={openEdit}
         disabled={isPending}
       >

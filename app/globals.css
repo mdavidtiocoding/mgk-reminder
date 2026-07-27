@@ -128,3 +128,28 @@
     @apply font-sans;
   }
 }
+
+/* Classic = default neutral shadcn tokens (no overrides) */
+
+.theme-premium {
+  --primary: oklch(0.42 0.14 255);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.55 0.1 255);
+  --sidebar-primary: oklch(0.42 0.14 255);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-ring: oklch(0.55 0.1 255);
+}
+
+.theme-premium .premium-pulse-ring {
+  animation: premium-pulse-ring 2s ease-in-out infinite;
+}
+
+@keyframes premium-pulse-ring {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 oklch(0.42 0.14 255 / 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 6px oklch(0.42 0.14 255 / 0);
+  }
+}

@@ -3,9 +3,11 @@ import { redirect } from "next/navigation"
 
 import { DashboardFilters } from "@/components/dashboard/dashboard-filters"
 import { DashboardProjectList } from "@/components/dashboard/dashboard-project-list"
+import { DashboardStatsBar } from "@/components/dashboard/dashboard-stats-bar"
 import { PushOnboardingBanner } from "@/components/notifications/push-onboarding-banner"
-import { AppHeader } from "@/components/layout/app-header"
+import { AppShell } from "@/components/layout/app-shell"
 import { getDashboardProjects, type DashboardProject } from "@/lib/projects/dashboard"
+import { getUiTheme } from "@/lib/ui/theme.server"
 import { createClient } from "@/lib/supabase/server"
 
 type DashboardPageProps = {
@@ -35,6 +37,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     .single()
 
   const filters = await searchParams
+  const theme = await getUiTheme()
   let projects: DashboardProject[] = []
   let loadError: string | null = null
 
@@ -47,13 +50,25 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      <AppHeader
-        userName={profile?.name ?? user.email ?? "User"}
-        division={profile?.division}
-      />
-      <main className="flex flex-1 flex-col gap-6 p-6">
+    <AppShell
+      userName={profile?.name ?? user.email ?? "User"}
+      division={profile?.division}
+    >
+      <main
+        className={
+          theme === "premium"
+            ? "mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 p-6"
+            : "flex flex-1 flex-col gap-6 p-6"
+        }
+      >
         <PushOnboardingBanner />
+
+        {theme === "premium" && (
+          <DashboardStatsBar
+            projects={projects}
+            userDivision={profile?.division}
+          />
+        )}
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -67,8 +82,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </Suspense>
         </div>
 
-        <DashboardProjectList projects={projects} loadError={loadError} />
+        <DashboardProjectList
+          projects={projects}
+          loadError={loadError}
+          variant={theme}
+        />
       </main>
-    </div>
+    </AppShell>
   )
 }

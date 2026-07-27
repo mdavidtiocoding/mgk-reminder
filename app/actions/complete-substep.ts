@@ -13,9 +13,10 @@ import {
 } from "@/lib/projects/active-steps"
 import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
 import {
-  areAllSubstepsComplete,
+  areRequiredSubstepsComplete,
+  canCompleteSubstepNow,
   getCompletedSubstepKeys,
-  getNextSubstep,
+  getSubstepKind,
 } from "@/lib/steps/substeps"
 import { createClient } from "@/lib/supabase/server"
 
@@ -100,18 +101,24 @@ export async function completeSubstep(
   }))
 
   const doneCodes = buildDoneCodes(completions, substepCompletions, runtimeSteps)
-  if (!isStepActiveForFlow(step, doneCodes)) {
-    return { success: false, error: "Step ini belum aktif." }
-  }
-
   const completedKeys = getCompletedSubstepKeys(stepCode, substepCompletions)
+  const substepKind = getSubstepKind(substep)
+  const stepFlowDone = doneCodes.has(stepCode)
+
   if (completedKeys.has(substepKey)) {
     return { success: false, error: "Sub-step ini sudah selesai." }
   }
 
-  const nextSubstep = getNextSubstep(step.substeps, completedKeys)
-  if (!nextSubstep || nextSubstep.key !== substepKey) {
-    return { success: false, error: "Selesaikan sub-step sebelumnya terlebih dahulu." }
+  if (!canCompleteSubstepNow(substep, step.substeps, completedKeys)) {
+    return { success: false, error: "Selesaikan sub-step wajib sebelumnya terlebih dahulu." }
+  }
+
+  if (substepKind === "required") {
+    if (!isStepActiveForFlow(step, doneCodes)) {
+      return { success: false, error: "Step ini belum aktif." }
+    }
+  } else if (!isStepActiveForFlow(step, doneCodes) && !stepFlowDone) {
+    return { success: false, error: "Step ini belum aktif." }
   }
 
   const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
@@ -160,12 +167,12 @@ export async function completeSubstep(
     },
   ]
 
-  const allDone = areAllSubstepsComplete(
+  const requiredDone = areRequiredSubstepsComplete(
     step.substeps,
     getCompletedSubstepKeys(stepCode, updatedSubsteps)
   )
 
-  if (allDone) {
+  if (requiredDone && substepKind === "required") {
     const projectDates = {
       createdAt: project.created_at,
       ex_work_date: project.ex_work_date,
@@ -182,22 +189,26 @@ export async function completeSubstep(
       getActiveComputedSteps(beforeSteps).map((s) => s.definition.code)
     )
 
-    const { error: stepDoneError } = await supabase.from("step_completions").insert({
-      project_id: projectId,
-      step_code: stepCode,
-      completed_by: user.id,
-      note: options?.note?.trim() || null,
-    })
+    const stepAlreadyRecorded = completions.some((c) => c.stepCode === stepCode)
 
-    if (stepDoneError) {
-      await supabase
-        .from("step_substep_completions")
-        .delete()
-        .eq("project_id", projectId)
-        .eq("step_code", stepCode)
-        .eq("substep_key", substepKey)
+    if (!stepAlreadyRecorded) {
+      const { error: stepDoneError } = await supabase.from("step_completions").insert({
+        project_id: projectId,
+        step_code: stepCode,
+        completed_by: user.id,
+        note: options?.note?.trim() || null,
+      })
 
-      return { success: false, error: stepDoneError.message }
+      if (stepDoneError) {
+        await supabase
+          .from("step_substep_completions")
+          .delete()
+          .eq("project_id", projectId)
+          .eq("step_code", stepCode)
+          .eq("substep_key", substepKey)
+
+        return { success: false, error: stepDoneError.message }
+      }
     }
 
     await clearCalendarRemindersForStep({ projectId, stepCode })
@@ -206,10 +217,12 @@ export async function completeSubstep(
       ...substepCompletions,
       { stepCode, substepKey, completedAt: new Date().toISOString() },
     ]
-    const afterCompletions = [
-      ...completions,
-      { stepCode, completedAt: new Date().toISOString() },
-    ]
+    const afterCompletions = stepAlreadyRecorded
+      ? completions
+      : [
+          ...completions,
+          { stepCode, completedAt: new Date().toISOString() },
+        ]
     const afterSteps = computeProjectSteps(afterCompletions, projectDates, {
       steps: runtimeSteps,
       substepCompletions: afterSubsteps,
@@ -277,20 +290,25 @@ export async function undoSubstep(
     .eq("project_id", projectId)
     .eq("step_code", stepCode)
 
+  const substep = step.substeps.find((s) => s.key === substepKey)
+  if (!substep) {
+    return { success: false, error: "Sub-step tidak dikenali." }
+  }
+
   const completedKeys = new Set((substepRows ?? []).map((row) => row.substep_key as string))
   if (!completedKeys.has(substepKey)) {
     return { success: false, error: "Sub-step belum selesai." }
   }
 
   const substepIndex = step.substeps.findIndex((s) => s.key === substepKey)
-  const hasLaterDone = step.substeps
+  const hasLaterDoneRequired = step.substeps
     .slice(substepIndex + 1)
-    .some((s) => completedKeys.has(s.key))
+    .some((s) => getSubstepKind(s) === "required" && completedKeys.has(s.key))
 
-  if (hasLaterDone) {
+  if (hasLaterDoneRequired) {
     return {
       success: false,
-      error: "Batalkan sub-step berikutnya terlebih dahulu.",
+      error: "Batalkan sub-step wajib berikutnya terlebih dahulu.",
     }
   }
 
@@ -313,11 +331,13 @@ export async function undoSubstep(
     return { success: false, error: deleteSubstepError.message }
   }
 
-  await supabase
-    .from("step_completions")
-    .delete()
-    .eq("project_id", projectId)
-    .eq("step_code", stepCode)
+  if (getSubstepKind(substep) === "required") {
+    await supabase
+      .from("step_completions")
+      .delete()
+      .eq("project_id", projectId)
+      .eq("step_code", stepCode)
+  }
 
   revalidatePath(`/projects/${projectId}`)
   revalidatePath("/")

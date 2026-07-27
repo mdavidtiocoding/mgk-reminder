@@ -8,13 +8,19 @@ import { ProjectCard } from "@/components/dashboard/project-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { DashboardProject } from "@/lib/projects/dashboard"
+import type { UiTheme } from "@/lib/ui/theme"
 
 type DashboardProjectListProps = {
   projects: DashboardProject[]
   loadError?: string | null
+  variant?: UiTheme
 }
 
-export function DashboardProjectList({ projects, loadError }: DashboardProjectListProps) {
+export function DashboardProjectList({
+  projects,
+  loadError,
+  variant = "classic",
+}: DashboardProjectListProps) {
   const [query, setQuery] = useState("")
   const [debounced, setDebounced] = useState("")
 
@@ -79,7 +85,7 @@ export function DashboardProjectList({ projects, loadError }: DashboardProjectLi
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((project) => (
-            <ProjectCard key={project.id} project={project} />
+            <ProjectCard key={project.id} project={project} variant={variant} />
           ))}
         </div>
       )}

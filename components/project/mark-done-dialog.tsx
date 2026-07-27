@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 
 import { completeStep } from "@/app/actions/complete-step"
+import { StepChecklistFields } from "@/components/project/step-checklist-fields"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -20,11 +20,19 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { todayDateKeyWib } from "@/lib/format"
 import type { DateInputField } from "@/lib/steps"
+import { isChecklistItemComplete } from "@/lib/steps/checklist-response"
+import {
+  COMPLETION_MODE_LABELS,
+  requiresChecklist,
+  requiresKeterangan,
+  type StepCompletionMode,
+} from "@/lib/steps/completion-mode"
 
 type MarkDoneDialogProps = {
   projectId: string
   stepCode: string
   stepName: string
+  completionMode?: StepCompletionMode
   checklist?: string[]
   dateInputs?: DateInputField[]
   hasOutcome?: boolean
@@ -34,6 +42,7 @@ export function MarkDoneDialog({
   projectId,
   stepCode,
   stepName,
+  completionMode = "normal",
   checklist,
   dateInputs,
   hasOutcome,
@@ -42,15 +51,21 @@ export function MarkDoneDialog({
   const [open, setOpen] = useState(false)
   const [note, setNote] = useState("")
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
+  const [checklistItemNotes, setChecklistItemNotes] = useState<Record<string, string>>({})
   const [dateValues, setDateValues] = useState<Record<string, string>>({})
   const [outcome, setOutcome] = useState<"ok" | "reschedule" | "">("")
   const [rescheduleDate, setRescheduleDate] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  const showChecklist =
+    requiresChecklist(completionMode) && checklist && checklist.length > 0
+  const noteRequired = requiresKeterangan(completionMode)
+
   function resetState() {
     setNote("")
     setCheckedItems(new Set())
+    setChecklistItemNotes({})
     setDateValues({})
     setOutcome("")
     setRescheduleDate("")
@@ -64,32 +79,47 @@ export function MarkDoneDialog({
         next.delete(item)
       } else {
         next.add(item)
+        setChecklistItemNotes((notes) => {
+          if (!notes[item]) return notes
+          const { [item]: _removed, ...rest } = notes
+          return rest
+        })
       }
       return next
     })
   }
 
   const checklistComplete =
-    !checklist || checklist.length === 0 || checklist.every((item) => checkedItems.has(item))
+    !showChecklist ||
+    checklist!.every((item) =>
+      isChecklistItemComplete({
+        item,
+        checked: checkedItems.has(item),
+        note: checklistItemNotes[item],
+      })
+    )
   const dateInputsComplete =
     !dateInputs ||
     dateInputs.length === 0 ||
     dateInputs.every((input) => !!dateValues[input.field])
   const outcomeComplete =
     !hasOutcome ||
-    (outcome === "ok") ||
+    outcome === "ok" ||
     (outcome === "reschedule" && !!rescheduleDate)
+  const noteComplete = !noteRequired || note.trim().length > 0
 
-  const canSubmit = checklistComplete && dateInputsComplete && outcomeComplete
+  const canSubmit =
+    checklistComplete && dateInputsComplete && outcomeComplete && noteComplete
 
   function handleSubmit() {
     setError(null)
     startTransition(async () => {
       const result = await completeStep(projectId, stepCode, {
         note,
-        checkedItems: Array.from(checkedItems),
+        checkedItems: showChecklist ? Array.from(checkedItems) : undefined,
+        checklistItemNotes: showChecklist ? checklistItemNotes : undefined,
         dateInputs: dateInputs?.length ? dateValues : undefined,
-        outcome: hasOutcome ? (outcome || undefined) : undefined,
+        outcome: hasOutcome ? outcome || undefined : undefined,
         rescheduleDate: outcome === "reschedule" ? rescheduleDate : undefined,
       })
       if (result.success) {
@@ -118,6 +148,11 @@ export function MarkDoneDialog({
           <DialogTitle>Tandai step ini selesai?</DialogTitle>
           <DialogDescription>
             {stepCode}: {stepName}
+            {completionMode !== "normal" && (
+              <span className="mt-1 block text-xs">
+                Mode: {COMPLETION_MODE_LABELS[completionMode]}
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -160,24 +195,16 @@ export function MarkDoneDialog({
             </div>
           )}
 
-          {checklist && checklist.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <Label>Checklist</Label>
-              <div className="flex flex-col gap-2 rounded-lg border p-3">
-                {checklist.map((item) => (
-                  <label
-                    key={item}
-                    className="flex items-center gap-2 text-sm"
-                  >
-                    <Checkbox
-                      checked={checkedItems.has(item)}
-                      onCheckedChange={() => toggleChecklistItem(item)}
-                    />
-                    {item}
-                  </label>
-                ))}
-              </div>
-            </div>
+          {showChecklist && (
+            <StepChecklistFields
+              checklist={checklist!}
+              checkedItems={checkedItems}
+              checklistItemNotes={checklistItemNotes}
+              onToggleItem={toggleChecklistItem}
+              onItemNoteChange={(item, value) =>
+                setChecklistItemNotes((prev) => ({ ...prev, [item]: value }))
+              }
+            />
           )}
 
           {dateInputs && dateInputs.length > 0 && (
@@ -200,15 +227,23 @@ export function MarkDoneDialog({
             </div>
           )}
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="note">Catatan (opsional)</Label>
-            <Textarea
-              id="note"
-              placeholder="Tambahkan catatan jika perlu..."
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
-          </div>
+          {(noteRequired || !showChecklist) && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="note">
+                {noteRequired ? "Keterangan (wajib)" : "Catatan (opsional)"}
+              </Label>
+              <Textarea
+                id="note"
+                placeholder={
+                  noteRequired
+                    ? "Isi keterangan sebelum menyelesaikan step…"
+                    : "Tambahkan catatan jika perlu…"
+                }
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </div>
+          )}
         </div>
 
         {error && (

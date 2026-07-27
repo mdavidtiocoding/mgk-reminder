@@ -2,6 +2,11 @@ import { cache } from "react"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { STEPS, type StepDefinition } from "@/lib/steps"
+import {
+  inferCompletionMode,
+  parseCompletionMode,
+  type StepCompletionMode,
+} from "@/lib/steps/completion-mode"
 import { parseSubsteps, type SubstepDefinition } from "@/lib/steps/substeps"
 
 export type RuntimeStep = StepDefinition & {
@@ -13,6 +18,7 @@ type StepDefinitionRow = {
   name: string
   prerequisites: string[] | null
   checklist_items: string[] | null
+  completion_mode?: string | null
   substeps?: unknown
 }
 
@@ -21,11 +27,16 @@ export function mergeRuntimeSteps(rows: StepDefinitionRow[]): RuntimeStep[] {
 
   return STEPS.map((step) => {
     const row = byCode.get(step.code)
+    const checklist = row?.checklist_items ?? step.checklist
     return {
       ...step,
       name: row?.name?.trim() || step.name,
       prerequisites: row?.prerequisites ?? step.prerequisites,
-      checklist: row?.checklist_items ?? step.checklist,
+      checklist,
+      completionMode: inferCompletionMode(
+        checklist,
+        row?.completion_mode ?? null
+      ),
       substeps: parseSubsteps(row?.substeps),
     }
   })
@@ -33,6 +44,16 @@ export function mergeRuntimeSteps(rows: StepDefinitionRow[]): RuntimeStep[] {
 
 export const loadRuntimeSteps = cache(
   async (supabase: SupabaseClient): Promise<RuntimeStep[]> => {
+    const withMode = await supabase
+      .from("step_definitions")
+      .select(
+        "code, name, prerequisites, checklist_items, completion_mode, substeps"
+      )
+
+    if (!withMode.error) {
+      return mergeRuntimeSteps((withMode.data ?? []) as StepDefinitionRow[])
+    }
+
     const withSubsteps = await supabase
       .from("step_definitions")
       .select("code, name, prerequisites, checklist_items, substeps")

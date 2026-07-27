@@ -12,8 +12,14 @@ import {
   TOTAL_STEP_COUNT,
 } from "@/lib/steps"
 import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
+import type { StepCompletionMode } from "@/lib/steps/completion-mode"
 import type { SubstepCompletion, SubstepDefinition } from "@/lib/steps/substeps"
+import {
+  getCompletedSubstepKeys,
+  getPendingReminderSubsteps,
+} from "@/lib/steps/substeps"
 import { loadSubstepCompletionsForProject } from "@/lib/projects/substep-data"
+import { indexLatestReschedules, isRescheduleChannel } from "@/lib/projects/reschedule-log"
 
 type CompletionRow = {
   step_code: string
@@ -26,6 +32,7 @@ type CompletionRow = {
 type ReminderRow = {
   step_code: string
   sent_at: string
+  channel: string
 }
 
 type FollowUpRow = {
@@ -70,12 +77,17 @@ export type StepTimelineItem = {
   followUpDate?: string
   followUpTime?: string
   followUpNote?: string | null
+  lastRescheduleDate?: string
+  lastRescheduleAt?: string
   checklist?: string[]
+  completionMode?: StepCompletionMode
   dateInputs?: DateInputField[]
   hasOutcome?: boolean
   substeps: SubstepDefinition[]
   substepCompletions: SubstepCompletion[]
   canComplete: boolean
+  canEditSubsteps: boolean
+  hasPendingReminderSubsteps: boolean
 }
 
 export type ProjectDetail = {
@@ -140,7 +152,7 @@ export async function getProjectDetail(
         outcome,
         profile:profiles(name)
       ),
-      reminder_log(step_code, sent_at),
+      reminder_log(step_code, sent_at, channel),
       followup_schedule(step_code, scheduled_date, scheduled_time, note)
     `
       )
@@ -159,11 +171,14 @@ export async function getProjectDetail(
 
   const lastReminderByStep = new Map<string, string>()
   for (const log of project.reminder_log ?? []) {
+    if (isRescheduleChannel(log.channel)) continue
     const existing = lastReminderByStep.get(log.step_code)
     if (!existing || log.sent_at > existing) {
       lastReminderByStep.set(log.step_code, log.sent_at)
     }
   }
+
+  const lastRescheduleByStep = indexLatestReschedules(project.reminder_log ?? [])
 
   const followUpByStep = new Map<string, FollowUpRow>()
   for (const followUp of project.followup_schedule ?? []) {
@@ -192,9 +207,14 @@ export async function getProjectDetail(
     const step = computed.definition
     const completion = completionByCode.get(step.code)
     const followUp = followUpByStep.get(step.code)
+    const reschedule = lastRescheduleByStep.get(step.code)
     const stepSubstepCompletions = substepCompletions.filter(
       (c) => c.stepCode === step.code
     )
+    const completedSubstepKeys = getCompletedSubstepKeys(step.code, substepCompletions)
+    const pendingReminders = getPendingReminderSubsteps(step.substeps, completedSubstepKeys)
+    const userCanCompleteStep =
+      project.status === "active" && canUserCompleteStep(userDivision, step.division)
 
     return {
       code: step.code,
@@ -214,15 +234,20 @@ export async function getProjectDetail(
       followUpDate: followUp?.scheduled_date,
       followUpTime: followUp?.scheduled_time ?? "09:00:00",
       followUpNote: followUp?.note,
+      lastRescheduleDate: reschedule?.newExWorkDate,
+      lastRescheduleAt: reschedule?.rescheduledAt,
       checklist: step.checklist,
+      completionMode: step.completionMode,
       dateInputs: step.dateInputs,
       hasOutcome: step.hasOutcome,
       substeps: step.substeps,
       substepCompletions: stepSubstepCompletions,
       canComplete:
-        computed.status === "active" &&
-        project.status === "active" &&
-        canUserCompleteStep(userDivision, step.division),
+        computed.status === "active" && userCanCompleteStep,
+      canEditSubsteps:
+        userCanCompleteStep &&
+        (computed.status === "active" || pendingReminders.length > 0),
+      hasPendingReminderSubsteps: pendingReminders.length > 0,
     }
   })
 

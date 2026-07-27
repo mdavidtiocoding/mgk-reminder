@@ -20,7 +20,11 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { formatDateKey, formatDateTime, todayDateKeyWib } from "@/lib/format"
 import type { SubstepDefinition, SubstepCompletion } from "@/lib/steps/substeps"
-import { getNextSubstep, getCompletedSubstepKeys } from "@/lib/steps/substeps"
+import {
+  canCompleteSubstepNow,
+  getCompletedSubstepKeys,
+  getSubstepKind,
+} from "@/lib/steps/substeps"
 
 type SubstepActionsProps = {
   projectId: string
@@ -60,7 +64,6 @@ export function SubstepActions({
   if (substeps.length === 0) return null
 
   const completedKeys = getCompletedSubstepKeys(stepCode, completions)
-  const nextSubstep = getNextSubstep(substeps, completedKeys)
   const stepCompletions = completions.filter((c) => c.stepCode === stepCode)
 
   function openConfirm(substep: SubstepDefinition) {
@@ -111,7 +114,9 @@ export function SubstepActions({
           {substeps.map((substep) => {
             const done = completedKeys.has(substep.key)
             const completion = stepCompletions.find((c) => c.substepKey === substep.key)
-            const isNext = nextSubstep?.key === substep.key
+            const kind = getSubstepKind(substep)
+            const actionable =
+              canEdit && canCompleteSubstepNow(substep, substeps, completedKeys)
 
             return (
               <div
@@ -119,6 +124,11 @@ export function SubstepActions({
                 className="flex flex-col gap-1 rounded-md border px-3 py-2"
               >
                 <div className="flex flex-wrap items-center gap-2">
+                  {kind === "reminder" && !done && (
+                    <Badge variant="outline" className="text-[10px]">
+                      Reminder
+                    </Badge>
+                  )}
                   {done ? (
                     <>
                       <Badge variant="secondary">{substep.label}</Badge>
@@ -141,10 +151,11 @@ export function SubstepActions({
                         </Button>
                       )}
                     </>
-                  ) : isNext && canEdit ? (
+                  ) : actionable ? (
                     <Button
                       type="button"
                       size="sm"
+                      variant={kind === "reminder" ? "outline" : "default"}
                       disabled={isPending}
                       onClick={() => openConfirm(substep)}
                     >
@@ -183,6 +194,11 @@ export function SubstepActions({
             <DialogDescription>
               {stepCode} — konfirmasi sub-step ini selesai. Waktu submit dicatat otomatis
               saat Anda klik Simpan.
+              {pendingSubstep && getSubstepKind(pendingSubstep) === "reminder" && (
+                <span className="mt-1 block">
+                  Sub-step reminder tidak memblokir unlock step berikutnya.
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
 

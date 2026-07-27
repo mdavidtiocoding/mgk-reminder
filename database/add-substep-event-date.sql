@@ -1,4 +1,6 @@
 -- Optional business date per sub-step (e.g. tanggal tagihan vs waktu klik di app)
+-- Run in Supabase Dashboard → SQL Editor (after add-substeps.sql)
+
 ALTER TABLE public.step_substep_completions
   ADD COLUMN IF NOT EXISTS event_date DATE;
 

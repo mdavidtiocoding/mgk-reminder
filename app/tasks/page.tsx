@@ -2,7 +2,8 @@ import { Suspense } from "react"
 import { redirect } from "next/navigation"
 
 import { TaskCard } from "@/components/tasks/task-card"
-import { AppHeader, OutstandingBadge } from "@/components/layout/app-header"
+import { AppShell } from "@/components/layout/app-shell"
+import { OutstandingBadge } from "@/components/layout/outstanding-badge"
 import { UrlSearchInput } from "@/components/search/url-search-input"
 import { getMyTasks, type MyTask } from "@/lib/projects/tasks"
 import type { Division } from "@/lib/steps"
@@ -76,13 +77,12 @@ export default async function MyTasksPage({
   const groups = groupTasksByProject(tasks)
 
   return (
-    <div className="flex flex-1 flex-col">
-      <AppHeader
-        userName={profile?.name ?? user.email ?? "User"}
-        division={profile?.division}
-        outstandingCount={tasks.length}
-      />
-      <main className="flex flex-1 flex-col gap-6 p-6">
+    <AppShell
+      userName={profile?.name ?? user.email ?? "User"}
+      division={profile?.division}
+      outstandingCount={tasks.length}
+    >
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 p-6">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-base font-medium">My Tasks</h2>
@@ -138,6 +138,6 @@ export default async function MyTasksPage({
           </div>
         )}
       </main>
-    </div>
+    </AppShell>
   )
 }
