@@ -14,6 +14,7 @@ import {
 
 import { OutstandingBadge } from "@/components/layout/outstanding-badge"
 import { Button } from "@/components/ui/button"
+import { getAppVariantBadgeLabel } from "@/lib/app-variant"
 import {
   DIVISION_BADGE_STYLES,
   getDivisionLabel,
@@ -89,6 +90,7 @@ export function AppSidebar({
     divisionKey && DIVISION_BADGE_STYLES[divisionKey]
       ? DIVISION_BADGE_STYLES[divisionKey].badge
       : "bg-muted text-muted-foreground"
+  const variantBadge = getAppVariantBadgeLabel()
 
   const sidebarContent = (
     <>
@@ -98,7 +100,12 @@ export function AppSidebar({
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-bold leading-tight">MGK</p>
-          <p className="truncate text-xs text-muted-foreground">Flow Reminder</p>
+          <p className="truncate text-xs text-muted-foreground">
+            Flow Reminder
+            {variantBadge ? (
+              <span className="ml-1 text-orange-600">· {variantBadge}</span>
+            ) : null}
+          </p>
         </div>
       </div>
 

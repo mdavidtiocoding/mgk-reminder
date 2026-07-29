@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { getAppVariantBadgeLabel, showDemoLoginAccounts } from "@/lib/app-variant"
 import { createClient } from "@/lib/supabase/client"
 
 export function LoginForm() {
@@ -44,6 +45,9 @@ export function LoginForm() {
     router.push("/")
   }
 
+  const showDemo = showDemoLoginAccounts()
+  const variantBadge = getAppVariantBadgeLabel()
+
   return (
     <div className="flex w-full max-w-sm flex-col gap-3">
       <Card className="w-full">
@@ -53,9 +57,11 @@ export function LoginForm() {
               <CardTitle>MGK Flow Reminder</CardTitle>
               <CardDescription>Masuk dengan email dan password perusahaan</CardDescription>
             </div>
-            <span className="rounded-full border border-orange-300 bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-600">
-              Beta 1.0
-            </span>
+            {variantBadge && (
+              <span className="rounded-full border border-orange-300 bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-600">
+                {variantBadge}
+              </span>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -101,37 +107,38 @@ export function LoginForm() {
         </CardContent>
       </Card>
 
-      {/* Demo accounts */}
-      <div className="rounded-lg border border-dashed p-3">
-        <p className="mb-2 text-xs font-medium text-muted-foreground">Akun Demo</p>
-        <div className="flex flex-col gap-0.5">
-          {[
-            ["marketing", "Marketing"],
-            ["ar", "AR"],
-            ["logistik", "Logistik"],
-            ["finance", "Finance"],
-            ["shipping", "Shipping"],
-            ["project", "Project"],
-            ["admin", "Admin"],
-          ].map(([div, label]) => (
-            <button
-              key={div}
-              type="button"
-              className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted"
-              onClick={() => {
-                setEmail(`${div}@dummy.com`)
-                setPassword(`${div}123`)
-              }}
-            >
-              <span className="w-24 shrink-0 text-muted-foreground">{label}</span>
-              <span className="min-w-0 truncate font-mono text-muted-foreground/70">
-                {div}@dummy.com
-              </span>
-            </button>
-          ))}
+      {showDemo && (
+        <div className="rounded-lg border border-dashed p-3">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Akun Demo</p>
+          <div className="flex flex-col gap-0.5">
+            {[
+              ["marketing", "Marketing"],
+              ["ar", "AR"],
+              ["logistik", "Logistik"],
+              ["finance", "Finance"],
+              ["shipping", "Shipping"],
+              ["project", "Project"],
+              ["admin", "Admin"],
+            ].map(([div, label]) => (
+              <button
+                key={div}
+                type="button"
+                className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted"
+                onClick={() => {
+                  setEmail(`${div}@dummy.com`)
+                  setPassword(`${div}123`)
+                }}
+              >
+                <span className="w-24 shrink-0 text-muted-foreground">{label}</span>
+                <span className="min-w-0 truncate font-mono text-muted-foreground/70">
+                  {div}@dummy.com
+                </span>
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground/60">Klik baris untuk autofill</p>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground/60">Klik baris untuk autofill</p>
-      </div>
+      )}
     </div>
   )
 }
