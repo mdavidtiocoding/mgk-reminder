@@ -33,11 +33,11 @@ export function DashboardStatsBar({
   ]
 
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid auto-rows-fr gap-3 sm:grid-cols-3">
       {items.map((item) => (
         <div
           key={item.label}
-          className="rounded-xl border bg-card px-4 py-3 transition-colors duration-150"
+          className="flex min-h-[5.5rem] flex-col justify-center rounded-xl border bg-card px-4 py-3 transition-colors duration-150"
         >
           <p
             className={

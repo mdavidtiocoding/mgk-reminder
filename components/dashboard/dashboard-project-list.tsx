@@ -4,7 +4,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Search } from "lucide-react"
 
-import { ProjectCard } from "@/components/dashboard/project-card"
+import { ProjectCard, PREMIUM_PROJECT_CARD_HEIGHT } from "@/components/dashboard/project-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { DashboardProject } from "@/lib/projects/dashboard"
@@ -83,7 +83,14 @@ export function DashboardProjectList({
           )}
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div
+          className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+          style={
+            variant === "premium"
+              ? { gridAutoRows: PREMIUM_PROJECT_CARD_HEIGHT }
+              : undefined
+          }
+        >
           {filtered.map((project) => (
             <ProjectCard key={project.id} project={project} variant={variant} />
           ))}
