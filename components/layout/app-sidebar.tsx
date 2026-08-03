@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import {
   LayoutDashboard,
   ListTodo,
+  LogOut,
   Menu,
   Plus,
   Settings,
@@ -218,17 +219,31 @@ export function AppSidebar({
           </div>
           <span className="truncate text-sm font-semibold">MGK Flow Reminder</span>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="size-10 shrink-0"
-          aria-label={mobileOpen ? "Tutup menu" : "Buka menu navigasi"}
-          aria-expanded={mobileOpen}
-          onClick={() => setMobileOpen((open) => !open)}
-        >
-          {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
-        </Button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <form action="/auth/signout" method="post" className="md:hidden">
+            <Button
+              type="submit"
+              variant="ghost"
+              size="icon"
+              className="size-10 shrink-0 text-muted-foreground"
+              aria-label="Keluar"
+              title="Keluar"
+            >
+              <LogOut className="size-5" />
+            </Button>
+          </form>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="size-10 shrink-0"
+            aria-label={mobileOpen ? "Tutup menu" : "Buka menu navigasi"}
+            aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen((open) => !open)}
+          >
+            {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+          </Button>
+        </div>
       </header>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -248,8 +263,10 @@ export function AppSidebar({
         </SheetContent>
       </Sheet>
 
-      <aside className="hidden w-[220px] shrink-0 flex-col border-r bg-sidebar md:flex">
-        <SidebarPanel {...panelProps} />
+      <aside className="hidden min-h-full w-[220px] shrink-0 flex-col border-r bg-sidebar md:flex">
+        <div className="flex min-h-full flex-1 flex-col">
+          <SidebarPanel {...panelProps} />
+        </div>
       </aside>
     </>
   )

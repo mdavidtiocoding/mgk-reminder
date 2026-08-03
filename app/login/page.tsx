@@ -19,12 +19,12 @@ export default async function LoginPage() {
   const theme = await getUiTheme()
 
   return (
-    <div className="flex min-h-full flex-1 items-center justify-center p-6">
-      <div className="flex w-full max-w-sm flex-col gap-4">
+    <div className="flex min-h-full flex-1 overflow-y-auto p-6 py-8">
+      <div className="mx-auto flex w-full max-w-sm flex-col gap-4">
+        <LoginForm />
         <Suspense fallback={null}>
           <ThemePicker initialTheme={theme} />
         </Suspense>
-        <LoginForm />
       </div>
     </div>
   )
