@@ -14,9 +14,11 @@ function SheetContent({
   className,
   children,
   side = "right",
+  showCloseButton = true,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   side?: "right" | "left"
+  showCloseButton?: boolean
 }) {
   return (
     <DialogPrimitive.Portal>
@@ -24,18 +26,22 @@ function SheetContent({
       <DialogPrimitive.Content
         data-slot="sheet-content"
         className={cn(
-          "fixed z-50 flex h-full max-h-screen w-full max-w-lg min-h-0 flex-col overflow-hidden border bg-background shadow-xl duration-200 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:animate-in data-[state=open]:slide-in-from-right",
-          side === "right" && "inset-y-0 right-0",
-          side === "left" && "inset-y-0 left-0",
+          "fixed z-50 flex h-full max-h-screen min-h-0 flex-col overflow-hidden border bg-background shadow-xl duration-200 data-[state=closed]:animate-out data-[state=open]:animate-in",
+          side === "right" &&
+            "inset-y-0 right-0 w-full max-w-lg data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+          side === "left" &&
+            "inset-y-0 left-0 w-full max-w-lg data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
           className
         )}
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-none">
-          <XIcon className="size-4" />
-          <span className="sr-only">Tutup</span>
-        </DialogPrimitive.Close>
+        {showCloseButton && (
+          <DialogPrimitive.Close className="absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-none">
+            <XIcon className="size-4" />
+            <span className="sr-only">Tutup</span>
+          </DialogPrimitive.Close>
+        )}
       </DialogPrimitive.Content>
     </DialogPrimitive.Portal>
   )

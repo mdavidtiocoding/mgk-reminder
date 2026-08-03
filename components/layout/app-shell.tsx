@@ -43,7 +43,7 @@ export async function AppShell({
 
   if (theme === "premium") {
     return (
-      <div className="flex min-h-full flex-1">
+      <div className="flex min-h-full flex-1 flex-col md:flex-row">
         <AppSidebar
           userName={userName}
           division={division}

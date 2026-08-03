@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   LayoutDashboard,
   ListTodo,
@@ -14,6 +14,7 @@ import {
 
 import { OutstandingBadge } from "@/components/layout/outstanding-badge"
 import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { getAppVariantBadgeLabel } from "@/lib/app-variant"
 import {
   DIVISION_BADGE_STYLES,
@@ -38,10 +39,12 @@ function NavLinks({
   pathname,
   outstandingCount,
   onNavigate,
+  mobile = false,
 }: {
   pathname: string
   outstandingCount: number
   onNavigate?: () => void
+  mobile?: boolean
 }) {
   return (
     <nav className="flex flex-col gap-1">
@@ -58,6 +61,7 @@ function NavLinks({
             size="sm"
             className={cn(
               "h-9 w-full justify-start gap-2 px-3 font-normal transition-colors duration-150",
+              mobile && "h-11",
               active
                 ? "bg-primary/10 font-medium text-primary hover:bg-primary/15 hover:text-primary"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -78,23 +82,33 @@ function NavLinks({
   )
 }
 
-export function AppSidebar({
+function SidebarPanel({
   userName,
-  division,
+  divisionKey,
+  divisionStyle,
+  variantBadge,
+  pathname,
   outstandingCount,
-}: AppSidebarProps) {
-  const pathname = usePathname()
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const divisionKey = division as Division | undefined
-  const divisionStyle =
-    divisionKey && DIVISION_BADGE_STYLES[divisionKey]
-      ? DIVISION_BADGE_STYLES[divisionKey].badge
-      : "bg-muted text-muted-foreground"
-  const variantBadge = getAppVariantBadgeLabel()
-
-  const sidebarContent = (
+  onNavigate,
+  mobile = false,
+}: {
+  userName: string
+  divisionKey: Division | undefined
+  divisionStyle: string
+  variantBadge: string | null
+  pathname: string
+  outstandingCount: number
+  onNavigate?: () => void
+  mobile?: boolean
+}) {
+  return (
     <>
-      <div className="flex items-center gap-2.5 px-3 py-4">
+      <div
+        className={cn(
+          "flex items-center gap-2.5 px-3 py-4",
+          mobile && "pt-[max(1rem,env(safe-area-inset-top))]"
+        )}
+      >
         <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
           M
         </div>
@@ -113,17 +127,28 @@ export function AppSidebar({
         <NavLinks
           pathname={pathname}
           outstandingCount={outstandingCount}
-          onNavigate={() => setMobileOpen(false)}
+          onNavigate={onNavigate}
+          mobile={mobile}
         />
-        <Button variant="outline" size="sm" className="mx-1 gap-1.5" asChild>
-          <Link href="/projects/new" onClick={() => setMobileOpen(false)}>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn("mx-1 gap-1.5", mobile && "h-11")}
+          asChild
+        >
+          <Link href="/projects/new" onClick={onNavigate}>
             <Plus className="size-4" />
             Project Baru
           </Link>
         </Button>
       </div>
 
-      <div className="mt-auto border-t px-3 py-4">
+      <div
+        className={cn(
+          "mt-auto border-t px-3 py-4",
+          mobile && "pb-[max(1rem,env(safe-area-inset-bottom))]"
+        )}
+      >
         <div className="flex flex-col gap-2">
           {divisionKey && (
             <span
@@ -137,7 +162,12 @@ export function AppSidebar({
           )}
           <p className="truncate text-sm font-medium">{userName}</p>
           <form action="/auth/signout" method="post">
-            <Button type="submit" variant="outline" size="sm" className="w-full">
+            <Button
+              type="submit"
+              variant="outline"
+              size="sm"
+              className={cn("w-full", mobile && "h-11")}
+            >
               Keluar
             </Button>
           </form>
@@ -145,43 +175,81 @@ export function AppSidebar({
       </div>
     </>
   )
+}
+
+export function AppSidebar({
+  userName,
+  division,
+  outstandingCount,
+}: AppSidebarProps) {
+  const pathname = usePathname()
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const divisionKey = division as Division | undefined
+  const divisionStyle =
+    divisionKey && DIVISION_BADGE_STYLES[divisionKey]
+      ? DIVISION_BADGE_STYLES[divisionKey].badge
+      : "bg-muted text-muted-foreground"
+  const variantBadge = getAppVariantBadgeLabel()
+
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
+
+  const panelProps = {
+    userName,
+    divisionKey,
+    divisionStyle,
+    variantBadge,
+    pathname,
+    outstandingCount,
+  }
 
   return (
     <>
-      <header className="flex items-center justify-between gap-3 border-b bg-background px-4 py-3 md:hidden">
-        <div className="flex items-center gap-2">
-          <div className="flex size-7 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
+      <header
+        className={cn(
+          "sticky top-0 z-30 flex items-center justify-between gap-3 border-b bg-background px-4 py-3 md:hidden",
+          "pt-[max(0.75rem,env(safe-area-inset-top))]"
+        )}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
             M
           </div>
-          <span className="text-sm font-semibold">MGK Flow Reminder</span>
+          <span className="truncate text-sm font-semibold">MGK Flow Reminder</span>
         </div>
         <Button
           type="button"
           variant="outline"
-          size="icon-sm"
-          aria-label={mobileOpen ? "Tutup menu" : "Buka menu"}
+          size="icon"
+          className="size-10 shrink-0"
+          aria-label={mobileOpen ? "Tutup menu" : "Buka menu navigasi"}
+          aria-expanded={mobileOpen}
           onClick={() => setMobileOpen((open) => !open)}
         >
-          {mobileOpen ? <X className="size-4" /> : <Menu className="size-4" />}
+          {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
         </Button>
       </header>
 
-      {mobileOpen && (
-        <button
-          type="button"
-          aria-label="Tutup menu"
-          className="fixed inset-0 z-40 bg-black/40 md:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent
+          side="left"
+          showCloseButton={false}
+          className="w-[min(280px,85vw)] max-w-[85vw] gap-0 border-r bg-sidebar p-0 shadow-xl"
+          aria-describedby={undefined}
+        >
+          <div className="flex h-full flex-col">
+            <SidebarPanel
+              {...panelProps}
+              mobile
+              onNavigate={() => setMobileOpen(false)}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
 
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[220px] flex-col border-r bg-sidebar transition-transform duration-200 md:static md:translate-x-0",
-          mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-        )}
-      >
-        {sidebarContent}
+      <aside className="hidden w-[220px] shrink-0 flex-col border-r bg-sidebar md:flex">
+        <SidebarPanel {...panelProps} />
       </aside>
     </>
   )
