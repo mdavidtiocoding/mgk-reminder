@@ -60,14 +60,14 @@ export function CreateProjectForm({ customers }: CreateProjectFormProps) {
   }
 
   return (
-    <Card className="w-full max-w-lg">
+    <Card className="w-full max-w-lg overflow-visible">
       <CardHeader>
         <CardTitle>Buat Project Baru</CardTitle>
         <CardDescription>
           Project dimulai di Step 1. Tanggal mulai = hari ini.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="overflow-visible">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="name">Nama project</Label>

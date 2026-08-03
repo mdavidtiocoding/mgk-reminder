@@ -78,7 +78,7 @@ export function ProjectPageHeader({
   }
 
   return (
-    <div className="-mx-6 -mt-6 border-b bg-gradient-to-r from-zinc-900 to-zinc-800 text-white">
+    <div className="-mx-6 -mt-6 border-b border-white/10 bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 text-white">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-6 py-6">
         <Button
           variant="ghost"
@@ -98,9 +98,12 @@ export function ProjectPageHeader({
               <h2 className="text-2xl font-bold">{projectName}</h2>
               <Badge
                 className={cn(
-                  status === "on_hold" && "border-white/30 bg-white/10 text-white",
-                  status === "completed" && "bg-white/20 text-white",
-                  status === "active" && "bg-primary text-primary-foreground"
+                  status === "on_hold" &&
+                    "border-white/40 bg-white/10 text-white",
+                  status === "completed" &&
+                    "border-white/30 bg-white/15 text-white",
+                  status === "active" &&
+                    "border-emerald-400/50 bg-emerald-500/20 text-emerald-50"
                 )}
               >
                 {STATUS_LABELS[status]}

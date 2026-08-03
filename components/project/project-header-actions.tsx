@@ -136,7 +136,7 @@ export function ProjectHeaderActions({
             className={cn(
               "h-8 w-[140px]",
               isDark &&
-                "border-white/30 bg-white/10 text-white hover:bg-white/15 [&_svg]:text-white/80"
+                "border-white/40 bg-white/10 text-white hover:bg-white/15 [&_svg]:text-white/90"
             )}
             size="sm"
           >
@@ -158,7 +158,7 @@ export function ProjectHeaderActions({
         size="sm"
         className={cn(
           isDark &&
-            "border border-white/30 text-white hover:bg-white/10 hover:text-white"
+            "border border-white/40 bg-white/5 text-white hover:bg-white/15 hover:text-white"
         )}
         onClick={openEdit}
         disabled={isPending}
@@ -170,8 +170,12 @@ export function ProjectHeaderActions({
       {isAdmin && (
         <Button
           type="button"
-          variant="destructive"
+          variant={isDark ? "outline" : "destructive"}
           size="sm"
+          className={cn(
+            isDark &&
+              "border-red-400/80 bg-red-500/15 text-red-100 hover:border-red-300 hover:bg-red-500/30 hover:text-white"
+          )}
           onClick={() => {
             setError(null)
             setDeleteOpen(true)
