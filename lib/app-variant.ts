@@ -20,7 +20,9 @@ export function isBetaApp(): boolean {
 }
 
 export function showDemoLoginAccounts(): boolean {
-  return isBetaApp()
+  // Sementara: demo tetap di production selama akun @dummy.com masih dipakai.
+  // Matikan nanti dengan return isBetaApp() atau env NEXT_PUBLIC_SHOW_DEMO_LOGIN=false.
+  return true
 }
 
 export function getAppVariantBadgeLabel(): string | null {
