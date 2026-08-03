@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useState, useTransition } from "react"
 
 import { createProject } from "@/app/actions/create-project"
+import { CustomerSearchSelect } from "@/components/project/customer-search-select"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -14,13 +15,6 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 
 type Customer = {
   id: string
@@ -46,6 +40,10 @@ export function CreateProjectForm({ customers }: CreateProjectFormProps) {
     const formData = new FormData(e.currentTarget)
 
     if (mode === "existing") {
+      if (!customerId) {
+        setError("Pilih customer terlebih dahulu.")
+        return
+      }
       formData.set("customerId", customerId)
       formData.delete("newCustomerName")
     } else {
@@ -76,7 +74,7 @@ export function CreateProjectForm({ customers }: CreateProjectFormProps) {
             <Input
               id="name"
               name="name"
-              placeholder="Lift Tower A - PT Maju Jaya"
+              placeholder="Cth : Proyek Lift PT ABC"
               required
             />
           </div>
@@ -107,18 +105,12 @@ export function CreateProjectForm({ customers }: CreateProjectFormProps) {
           {mode === "existing" ? (
             <div className="flex flex-col gap-2">
               <Label htmlFor="customerId">Pilih customer</Label>
-              <Select value={customerId} onValueChange={setCustomerId} required>
-                <SelectTrigger id="customerId">
-                  <SelectValue placeholder="Pilih customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((customer) => (
-                    <SelectItem key={customer.id} value={customer.id}>
-                      {customer.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CustomerSearchSelect
+                id="customerId"
+                customers={customers}
+                value={customerId}
+                onValueChange={setCustomerId}
+              />
             </div>
           ) : (
             <div className="flex flex-col gap-2">
@@ -126,7 +118,7 @@ export function CreateProjectForm({ customers }: CreateProjectFormProps) {
               <Input
                 id="newCustomerName"
                 name="newCustomerName"
-                placeholder="PT Maju Jaya"
+                placeholder="Cth : PT ABC"
                 required
               />
             </div>
