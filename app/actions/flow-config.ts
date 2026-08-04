@@ -439,3 +439,42 @@ export async function resetStepConfig(
 
   return { success: true }
 }
+
+export async function updateStepTriggerConfig(
+  stepCode: string,
+  trigger: Record<string, unknown>
+): Promise<{ success: true } | { success: false; error: string }> {
+  const { supabase } = await requireAdmin()
+
+  const { parseTriggerConfig } = await import("@/lib/steps/trigger-config")
+  const parsed = parseTriggerConfig(trigger)
+  if (!parsed) {
+    return { success: false, error: "Konfigurasi trigger tidak valid." }
+  }
+
+  const result = await supabase
+    .from("step_definitions")
+    .update({ trigger_config: parsed })
+    .eq("code", stepCode)
+    .select("code")
+    .maybeSingle()
+
+  if (result.error) {
+    return {
+      success: false,
+      error: result.error.message.includes("trigger_config")
+        ? "Kolom trigger_config belum ada ? jalankan database/add-trigger-and-bast-config.sql"
+        : result.error.message,
+    }
+  }
+  if (!result.data) {
+    return { success: false, error: "Step tidak ditemukan." }
+  }
+
+  revalidatePath("/settings/flow")
+  revalidatePath("/projects/[id]", "page")
+  revalidatePath("/")
+  revalidatePath("/tasks")
+
+  return { success: true }
+}

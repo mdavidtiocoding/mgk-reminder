@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { Suspense } from "react"
 import { ArrowLeft } from "lucide-react"
 
 import { FlowConfigTable, type FlowConfigRow } from "@/components/settings/flow-config-table"
@@ -12,9 +13,10 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { requireAdmin } from "@/lib/auth/require-admin"
-import { STEPS, describeTrigger } from "@/lib/steps"
+import { STEPS, describeTrigger, type StepTrigger } from "@/lib/steps"
 import { inferCompletionMode } from "@/lib/steps/completion-mode"
 import { parseSubsteps } from "@/lib/steps/substeps"
+import { parseTriggerConfig } from "@/lib/steps/trigger-config"
 import { getUiTheme } from "@/lib/ui/theme.server"
 import { cn } from "@/lib/utils"
 
@@ -28,6 +30,7 @@ type StepDefRow = {
   checklist_items?: string[] | null
   completion_mode?: string | null
   substeps?: unknown
+  trigger_config?: unknown
 }
 
 export default async function FlowSettingsPage() {
@@ -36,35 +39,51 @@ export default async function FlowSettingsPage() {
   const fullQuery = await supabase
     .from("step_definitions")
     .select(
-      "code, name, division, stage, sort_order, prerequisites, checklist_items, completion_mode, substeps"
+      "code, name, division, stage, sort_order, prerequisites, checklist_items, completion_mode, substeps, trigger_config"
     )
     .order("sort_order")
 
   let stepDefRows: StepDefRow[]
 
   if (fullQuery.error) {
-    const withSubsteps = await supabase
+    const withMode = await supabase
       .from("step_definitions")
       .select(
-        "code, name, division, stage, sort_order, prerequisites, checklist_items, substeps"
+        "code, name, division, stage, sort_order, prerequisites, checklist_items, completion_mode, substeps"
       )
       .order("sort_order")
 
-    if (withSubsteps.error) {
-      const fallback = await supabase
+    if (withMode.error) {
+      const withSubsteps = await supabase
         .from("step_definitions")
-        .select("code, name, division, stage, sort_order, prerequisites, checklist_items")
+        .select(
+          "code, name, division, stage, sort_order, prerequisites, checklist_items, substeps"
+        )
         .order("sort_order")
 
-      stepDefRows = (fallback.data ?? []).map((row) => ({
-        ...row,
-        substeps: null,
-        completion_mode: null,
-      })) as StepDefRow[]
+      if (withSubsteps.error) {
+        const fallback = await supabase
+          .from("step_definitions")
+          .select("code, name, division, stage, sort_order, prerequisites, checklist_items")
+          .order("sort_order")
+
+        stepDefRows = (fallback.data ?? []).map((row) => ({
+          ...row,
+          substeps: null,
+          completion_mode: null,
+          trigger_config: null,
+        })) as StepDefRow[]
+      } else {
+        stepDefRows = (withSubsteps.data ?? []).map((row) => ({
+          ...row,
+          completion_mode: null,
+          trigger_config: null,
+        })) as StepDefRow[]
+      }
     } else {
-      stepDefRows = (withSubsteps.data ?? []).map((row) => ({
+      stepDefRows = (withMode.data ?? []).map((row) => ({
         ...row,
-        completion_mode: null,
+        trigger_config: null,
       })) as StepDefRow[]
     }
   } else {
@@ -86,6 +105,12 @@ export default async function FlowSettingsPage() {
       const stepFromLib = STEPS.find((step) => step.code === row.code)
       const checklistItems =
         (row.checklist_items as string[] | null) ?? stepFromLib?.checklist ?? []
+      const triggerOverride = parseTriggerConfig(row.trigger_config)
+      const trigger: StepTrigger =
+        triggerOverride ?? stepFromLib?.trigger ?? { type: "immediate" }
+      const stepForDescribe = stepFromLib
+        ? { ...stepFromLib, trigger }
+        : undefined
       return {
         code: row.code,
         name: row.name,
@@ -98,7 +123,10 @@ export default async function FlowSettingsPage() {
           row.completion_mode ?? null
         ),
         checklistItems,
-        triggerDescription: stepFromLib ? describeTrigger(stepFromLib) : "—",
+        trigger,
+        triggerDescription: stepForDescribe
+          ? describeTrigger(stepForDescribe)
+          : "—",
         unlocksSteps: (unlocksMap.get(row.code) ?? []).sort(
           (a, b) =>
             (STEPS.find((s) => s.code === a)?.order ?? 0) -
@@ -148,11 +176,13 @@ export default async function FlowSettingsPage() {
         <Card className={cn("overflow-visible", isPremium && "border-0 shadow-none")}>
           {isPremium ? (
             <CardContent className="overflow-visible p-0 pt-1">
-              <FlowConfigTable
-                rows={rows}
-                allStepOptions={allStepOptions}
-                compact
-              />
+              <Suspense fallback={<p className="p-4 text-sm text-muted-foreground">Memuat…</p>}>
+                <FlowConfigTable
+                  rows={rows}
+                  allStepOptions={allStepOptions}
+                  compact
+                />
+              </Suspense>
             </CardContent>
           ) : (
             <>
@@ -160,11 +190,14 @@ export default async function FlowSettingsPage() {
                 <CardTitle>Flow per Step</CardTitle>
                 <CardDescription>
                   Mode Selesai menentukan form saat &ldquo;Tandai Selesai&rdquo;.
-                  Sub-step = tombol berurutan (A1, M3).
+                  Sub-step = tombol berurutan (A1, M3). Trigger (mis. 3 hari
+                  sebelum ETA) bisa diedit tanpa coding.
                 </CardDescription>
               </CardHeader>
               <CardContent className="overflow-visible">
-                <FlowConfigTable rows={rows} allStepOptions={allStepOptions} />
+                <Suspense fallback={<p className="text-sm text-muted-foreground">Memuat…</p>}>
+                  <FlowConfigTable rows={rows} allStepOptions={allStepOptions} />
+                </Suspense>
               </CardContent>
             </>
           )}

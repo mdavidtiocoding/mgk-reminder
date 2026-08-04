@@ -97,6 +97,21 @@ function StepDoneBody({
   project: ProjectDetail
   step: StepTimelineItem
 }) {
+  const capturedDates =
+    step.dateInputs?.map((input) => {
+      const value =
+        input.field === "ex_work_date"
+          ? project.exWorkDate
+          : input.field === "etd_date"
+            ? project.etdDate
+            : input.field === "eta_date"
+              ? project.etaDate
+              : input.field === "mos_date"
+                ? project.mosDate
+                : null
+      return { label: input.label, value }
+    }) ?? []
+
   return (
     <div className="mt-3 space-y-3">
       <div className="space-y-1 text-sm text-muted-foreground">
@@ -107,7 +122,7 @@ function StepDoneBody({
           </p>
         )}
         {step.completedAt && <p>{formatDateTime(step.completedAt)}</p>}
-        {step.outcome && (
+        {step.outcome && step.outcome !== "skipped" && (
           <p>
             Hasil:{" "}
             <span className="text-foreground">
@@ -115,7 +130,26 @@ function StepDoneBody({
             </span>
           </p>
         )}
-        {step.note && <p className="italic">&ldquo;{step.note}&rdquo;</p>}
+        {step.outcome === "skipped" && (
+          <p className="text-amber-800">Dilewati (tidak applicable)</p>
+        )}
+        {capturedDates.map(
+          (row) =>
+            row.value && (
+              <p key={row.label}>
+                {row.label}:{" "}
+                <span className="font-medium text-foreground">{row.value}</span>
+              </p>
+            )
+        )}
+        {step.note && (
+          <div className="rounded-md border bg-muted/40 px-3 py-2">
+            <p className="mb-1 text-xs font-medium text-foreground">Hasil / catatan</p>
+            <pre className="whitespace-pre-wrap font-sans text-sm text-foreground">
+              {step.note}
+            </pre>
+          </div>
+        )}
       </div>
       {step.canUndo && (
         <StepUndoButton projectId={project.id} stepCode={step.code} />
@@ -225,6 +259,8 @@ function StepActiveBody({
               checklist={step.checklist}
               dateInputs={step.dateInputs}
               hasOutcome={step.hasOutcome}
+              outcomeRescheduleField={step.outcomeRescheduleField}
+              bastChoice={step.bastChoice}
             />
           )}
           <SetFollowUpDialog
@@ -262,8 +298,9 @@ export function StepTimelineCard({
 }) {
   return (
     <div
+      id={`step-${step.code}`}
       className={cn(
-        "min-w-0 flex-1 rounded-xl border border-l-4 p-4",
+        "min-w-0 flex-1 scroll-mt-24 rounded-xl border border-l-4 p-4",
         DIVISION_BADGE_STYLES[step.division].border,
         step.status === "active" && "border-primary/40 bg-primary/5",
         step.flowWarnings.length > 0 && "border-amber-300/60 bg-amber-50/40",

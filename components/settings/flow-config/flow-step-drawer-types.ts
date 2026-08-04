@@ -1,5 +1,8 @@
 import type { FlowConfigRow } from "@/components/settings/flow-config-table"
 import type { StepCompletionMode } from "@/lib/steps/completion-mode"
+import type { StepTrigger } from "@/lib/steps"
+import { getStep } from "@/lib/steps"
+import { triggerConfigsEqual } from "@/lib/steps/trigger-config"
 import type { SubstepDefinition } from "@/lib/steps/substeps"
 
 export type FlowPageMode = "view" | "edit"
@@ -13,6 +16,7 @@ export type FlowStepDraft = {
   completionMode: StepCompletionMode
   checklistItems: string[]
   substeps: SubstepDefinition[]
+  trigger: StepTrigger
 }
 
 export type FlowStepDrawerHandlers = {
@@ -22,6 +26,7 @@ export type FlowStepDrawerHandlers = {
 }
 
 export function buildDraftFromRow(row: FlowConfigRow, displayName: string): FlowStepDraft {
+  const stepDef = getStep(row.code)
   return {
     name: displayName,
     prerequisites: [...row.prerequisites],
@@ -29,6 +34,7 @@ export function buildDraftFromRow(row: FlowConfigRow, displayName: string): Flow
     completionMode: row.completionMode,
     checklistItems: [...row.checklistItems],
     substeps: row.substeps.map((s) => ({ ...s })),
+    trigger: row.trigger ?? stepDef?.trigger ?? { type: "immediate" },
   }
 }
 
@@ -39,7 +45,8 @@ export function draftsEqual(a: FlowStepDraft, b: FlowStepDraft): boolean {
     arraysEqual(a.unlocksSteps, b.unlocksSteps) &&
     a.completionMode === b.completionMode &&
     arraysEqual(a.checklistItems, b.checklistItems) &&
-    substepsEqual(a.substeps, b.substeps)
+    substepsEqual(a.substeps, b.substeps) &&
+    triggerConfigsEqual(a.trigger, b.trigger)
   )
 }
 

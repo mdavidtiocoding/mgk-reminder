@@ -64,6 +64,8 @@ export type MyTask = {
   checklist?: string[]
   completionMode?: import("@/lib/steps/completion-mode").StepCompletionMode
   dateInputs?: import("@/lib/steps").DateInputField[]
+  outcomeRescheduleField?: import("@/lib/steps").DateField
+  bastChoice?: boolean
   lastRescheduleDate?: string
   lastRescheduleAt?: string
 }
@@ -178,6 +180,8 @@ export async function getMyTasks(
         checklist: step.checklist,
         completionMode: step.completionMode,
         dateInputs: step.dateInputs,
+        outcomeRescheduleField: step.outcomeRescheduleField,
+        bastChoice: step.bastChoice,
         lastRescheduleDate: reschedule?.newExWorkDate,
         lastRescheduleAt: reschedule?.rescheduledAt,
       }
@@ -234,6 +238,8 @@ export async function getMyTasks(
         checklist: step.checklist,
         completionMode: step.completionMode,
         dateInputs: step.dateInputs,
+        outcomeRescheduleField: step.outcomeRescheduleField,
+        bastChoice: step.bastChoice,
       }
 
       if (searchQuery?.trim()) {

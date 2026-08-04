@@ -1,13 +1,12 @@
 import { cache } from "react"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { STEPS, type StepDefinition } from "@/lib/steps"
+import { STEPS, type DateField, type StepDefinition } from "@/lib/steps"
 import {
   inferCompletionMode,
-  parseCompletionMode,
-  type StepCompletionMode,
 } from "@/lib/steps/completion-mode"
 import { parseSubsteps, type SubstepDefinition } from "@/lib/steps/substeps"
+import { parseTriggerConfig } from "@/lib/steps/trigger-config"
 
 export type RuntimeStep = StepDefinition & {
   substeps: SubstepDefinition[]
@@ -20,7 +19,17 @@ type StepDefinitionRow = {
   checklist_items: string[] | null
   completion_mode?: string | null
   substeps?: unknown
+  trigger_config?: unknown
+  has_outcome?: boolean | null
+  outcome_reschedule_field?: string | null
 }
+
+const DATE_FIELDS = new Set<string>([
+  "ex_work_date",
+  "etd_date",
+  "eta_date",
+  "mos_date",
+])
 
 export function mergeRuntimeSteps(rows: StepDefinitionRow[]): RuntimeStep[] {
   const byCode = new Map(rows.map((row) => [row.code, row]))
@@ -28,6 +37,15 @@ export function mergeRuntimeSteps(rows: StepDefinitionRow[]): RuntimeStep[] {
   return STEPS.map((step) => {
     const row = byCode.get(step.code)
     const checklist = row?.checklist_items ?? step.checklist
+    const triggerOverride = parseTriggerConfig(row?.trigger_config)
+    const hasOutcome =
+      row?.has_outcome != null ? row.has_outcome : step.hasOutcome
+    const rescheduleRaw = row?.outcome_reschedule_field
+    const outcomeRescheduleField =
+      typeof rescheduleRaw === "string" && DATE_FIELDS.has(rescheduleRaw)
+        ? (rescheduleRaw as DateField)
+        : step.outcomeRescheduleField
+
     return {
       ...step,
       name: row?.name?.trim() || step.name,
@@ -37,6 +55,9 @@ export function mergeRuntimeSteps(rows: StepDefinitionRow[]): RuntimeStep[] {
         checklist,
         row?.completion_mode ?? null
       ),
+      trigger: triggerOverride ?? step.trigger,
+      hasOutcome: hasOutcome || undefined,
+      outcomeRescheduleField,
       substeps: parseSubsteps(row?.substeps),
     }
   })
@@ -44,6 +65,16 @@ export function mergeRuntimeSteps(rows: StepDefinitionRow[]): RuntimeStep[] {
 
 export const loadRuntimeSteps = cache(
   async (supabase: SupabaseClient): Promise<RuntimeStep[]> => {
+    const withTrigger = await supabase
+      .from("step_definitions")
+      .select(
+        "code, name, prerequisites, checklist_items, completion_mode, substeps, trigger_config, has_outcome, outcome_reschedule_field"
+      )
+
+    if (!withTrigger.error) {
+      return mergeRuntimeSteps((withTrigger.data ?? []) as StepDefinitionRow[])
+    }
+
     const withMode = await supabase
       .from("step_definitions")
       .select(

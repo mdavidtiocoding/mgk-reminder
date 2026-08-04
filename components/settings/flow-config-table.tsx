@@ -1,13 +1,14 @@
 ﻿"use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Eye, GitBranch, Pencil, Table2 } from "lucide-react"
 
 import {
   updateStepCompletionConfig,
   updateStepPrerequisites,
   updateStepSubsteps,
+  updateStepTriggerConfig,
   updateStepUnlocks,
 } from "@/app/actions/flow-config"
 import { updateStepDefinitionName } from "@/app/actions/settings"
@@ -49,6 +50,7 @@ import {
   COMPLETION_MODE_LABELS,
   type StepCompletionMode,
 } from "@/lib/steps/completion-mode"
+import { triggerConfigsEqual } from "@/lib/steps/trigger-config"
 import { cn } from "@/lib/utils"
 
 export type FlowConfigRow = {
@@ -62,6 +64,7 @@ export type FlowConfigRow = {
   checklistItems: string[]
   triggerDescription: string
   unlocksSteps: string[]
+  trigger?: import("@/lib/steps").StepTrigger
 }
 
 type AllStepOption = {
@@ -152,9 +155,11 @@ export function FlowConfigTable({
   compact?: boolean
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const initialDivision = searchParams.get("division") ?? "all"
   const [search, setSearch] = useState("")
   const [stageFilter, setStageFilter] = useState("all")
-  const [divisionFilter, setDivisionFilter] = useState("all")
+  const [divisionFilter, setDivisionFilter] = useState(initialDivision)
   const [sort, setSort] = useState<SortOption>("flow")
   const [layoutView, setLayoutView] = useState<LayoutViewMode>("table")
   const [pageMode, setPageMode] = useState<FlowPageMode>("view")
@@ -162,6 +167,11 @@ export function FlowConfigTable({
   const [toast, setToast] = useState<string | null>(null)
   const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({})
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const fromUrl = searchParams.get("division")
+    if (fromUrl) setDivisionFilter(fromUrl)
+  }, [searchParams])
 
   useEffect(() => {
     return () => {
@@ -323,6 +333,16 @@ export function FlowConfigTable({
       .filter((s) => s.label)
     if (JSON.stringify(cleanedSubsteps) !== JSON.stringify(cleanedOriginal)) {
       const result = await updateStepSubsteps(stepCode, cleanedSubsteps)
+      if (!result.success) {
+        showToast(`Gagal: ${result.error}`)
+        ok = false
+      }
+    }
+    if (!triggerConfigsEqual(draft.trigger, original.trigger)) {
+      const result = await updateStepTriggerConfig(
+        stepCode,
+        draft.trigger as unknown as Record<string, unknown>
+      )
       if (!result.success) {
         showToast(`Gagal: ${result.error}`)
         ok = false

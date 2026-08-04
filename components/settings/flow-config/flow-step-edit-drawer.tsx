@@ -11,7 +11,7 @@ import {
   type FlowStepDraft,
   type FlowStepDrawerHandlers,
 } from "@/components/settings/flow-config/flow-step-drawer-types"
-import { TriggerDisplay } from "@/components/settings/flow-config/display-cells"
+import { TriggerEditor } from "@/components/settings/flow-config/trigger-editor"
 import type { FlowConfigRow } from "@/components/settings/flow-config-table"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -40,7 +40,6 @@ import {
   type StepCompletionMode,
 } from "@/lib/steps/completion-mode"
 import { slugifySubstepKey, SUBSTEP_KIND_LABELS, type SubstepKind } from "@/lib/steps/substeps"
-import { describeTriggerFull } from "@/lib/steps/trigger-display"
 import { cn } from "@/lib/utils"
 
 export function FlowStepEditDrawer({
@@ -175,15 +174,12 @@ export function FlowStepEditDrawer({
             </EditSection>
 
             <EditSection title="Trigger & Reminder">
-              <TriggerDisplay stepDef={stepDef} />
-              {stepDef && (
-                <p className="mt-2 text-xs text-muted-foreground italic">
-                  {describeTriggerFull(stepDef)}
-                </p>
-              )}
-              <p className="mt-1 text-[10px] text-muted-foreground">
-                Trigger didefinisikan di workflow bawaan (read-only).
-              </p>
+              <TriggerEditor
+                value={draft.trigger}
+                onChange={(trigger) => setDraft((d) => d && { ...d, trigger })}
+                stepOptions={allStepOptions}
+                disabled={isPending}
+              />
             </EditSection>
 
             {!hasSubsteps && (

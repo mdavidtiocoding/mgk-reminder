@@ -23,6 +23,7 @@ import {
   requiresKeterangan,
 } from "@/lib/steps/completion-mode"
 import type { DateField } from "@/lib/steps"
+import { BAST2_STEP_CODES } from "@/lib/steps"
 import { buildRescheduleChannel } from "@/lib/projects/reschedule-log"
 import {
   resolveUserDivisions,
@@ -32,7 +33,7 @@ import { createServiceClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 
 export type CompleteStepResult =
-  | { success: true }
+  | { success: true; projectCompleted?: boolean }
   | { success: false; error: string }
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
@@ -44,6 +45,10 @@ export type CompleteStepOptions = {
   rescheduleDate?: string
   checkedItems?: string[]
   checklistItemNotes?: Record<string, string>
+  /** P8 BAST: true = need BAST 2 steps; false = skip P9/A8 */
+  bast2Required?: boolean
+  /** Estimasi BAST (wajib jika step.bastChoice) */
+  bastEstimate?: string
 }
 
 export async function completeStep(
@@ -87,7 +92,9 @@ export async function completeStep(
 
   const { data: project } = await supabase
     .from("projects")
-    .select("name, status, ex_work_date, etd_date, eta_date, mos_date, created_at")
+    .select(
+      "name, status, ex_work_date, etd_date, eta_date, mos_date, created_at, bast2_required"
+    )
     .eq("id", projectId)
     .single()
 
@@ -178,14 +185,16 @@ export async function completeStep(
 
   if (step.hasOutcome) {
     if (options.outcome !== "ok" && options.outcome !== "reschedule") {
-      return { success: false, error: "Pilih hasil survey terlebih dahulu." }
+      return { success: false, error: "Pilih hasil (OK / Reschedule) terlebih dahulu." }
     }
 
     if (options.outcome === "reschedule") {
       if (!options.rescheduleDate || !DATE_PATTERN.test(options.rescheduleDate)) {
         return { success: false, error: "Tanggal reschedule tidak valid." }
       }
-      projectUpdates.ex_work_date = options.rescheduleDate
+      const rescheduleField =
+        step.outcomeRescheduleField ?? ("ex_work_date" as DateField)
+      projectUpdates[rescheduleField] = options.rescheduleDate
 
       if (Object.keys(projectUpdates).length > 0) {
         const { error: updateError } = await supabase
@@ -209,7 +218,7 @@ export async function completeStep(
 
       await resyncCalendarEventsForDateField({
         projectId,
-        dateField: "ex_work_date",
+        dateField: rescheduleField,
         actingUserId: user.id,
         newDateValue: options.rescheduleDate,
       })
@@ -224,6 +233,19 @@ export async function completeStep(
     outcome = options.outcome
   }
 
+  if (step.bastChoice) {
+    if (options.bast2Required !== true && options.bast2Required !== false) {
+      return {
+        success: false,
+        error: "Pilih apakah ada BAST 2 atau hanya BAST 1.",
+      }
+    }
+    if (!options.bastEstimate?.trim()) {
+      return { success: false, error: "Estimasi BAST wajib diisi." }
+    }
+  }
+
+  // Date inputs required when completing (not on reschedule path above)
   if (step.dateInputs && step.dateInputs.length > 0) {
     for (const input of step.dateInputs) {
       const value = options.dateInputs?.[input.field]
@@ -234,10 +256,15 @@ export async function completeStep(
     }
   }
 
-  if (Object.keys(projectUpdates).length > 0) {
+  const projectPatch: Record<string, unknown> = { ...projectUpdates }
+  if (step.bastChoice && options.bast2Required !== undefined) {
+    projectPatch.bast2_required = options.bast2Required
+  }
+
+  if (Object.keys(projectPatch).length > 0) {
     const { error: updateError } = await supabase
       .from("projects")
-      .update(projectUpdates)
+      .update(projectPatch)
       .eq("id", projectId)
 
     if (updateError) {
@@ -261,13 +288,26 @@ export async function completeStep(
     getActiveComputedSteps(beforeSteps).map((s) => s.definition.code)
   )
 
+  const bastNote =
+    step.bastChoice && options.bastEstimate?.trim()
+      ? `Estimasi BAST: ${options.bastEstimate.trim()}${
+          options.bast2Required === false
+            ? " · Hanya BAST 1 (BAST 2 tidak applicable)"
+            : " · Ada BAST 1 & BAST 2"
+        }`
+      : null
+
+  const baseNote = checklistResponses
+    ? formatCompletionNote(checklistResponses, options.note)
+    : options.note?.trim() || null
+
+  const combinedNote = [baseNote, bastNote].filter(Boolean).join("\n") || null
+
   const { error } = await supabase.from("step_completions").insert({
     project_id: projectId,
     step_code: stepCode,
     completed_by: user.id,
-    note: checklistResponses
-      ? formatCompletionNote(checklistResponses, options.note)
-      : options.note?.trim() || null,
+    note: combinedNote,
     outcome,
   })
 
@@ -275,11 +315,43 @@ export async function completeStep(
     return { success: false, error: error.message }
   }
 
+  // Jika hanya BAST 1: auto-skip P9 & A8 agar project bisa selesai
+  if (step.bastChoice && options.bast2Required === false) {
+    const alreadyDone = new Set(completions.map((c) => c.stepCode))
+    alreadyDone.add(stepCode)
+    const skipRows = BAST2_STEP_CODES.filter((code) => !alreadyDone.has(code)).map(
+      (code) => ({
+        project_id: projectId,
+        step_code: code,
+        completed_by: user.id,
+        note: "Dilewati otomatis — project hanya BAST 1",
+        outcome: "skipped",
+      })
+    )
+    if (skipRows.length > 0) {
+      const { error: skipError } = await supabase
+        .from("step_completions")
+        .insert(skipRows)
+      if (skipError) {
+        return { success: false, error: skipError.message }
+      }
+    }
+  }
+
   await clearCalendarRemindersForStep({ projectId, stepCode })
+
+  const skipCodes =
+    step.bastChoice && options.bast2Required === false
+      ? [...BAST2_STEP_CODES]
+      : []
 
   const afterCompletions = [
     ...completions,
     { stepCode, completedAt: new Date().toISOString() },
+    ...skipCodes.map((code) => ({
+      stepCode: code,
+      completedAt: new Date().toISOString(),
+    })),
   ]
   const afterSteps = computeProjectSteps(afterCompletions, projectDates, {
     steps: runtimeSteps,
@@ -304,9 +376,17 @@ export async function completeStep(
     })
   }
 
+  const { data: refreshed } = await supabase
+    .from("projects")
+    .select("status")
+    .eq("id", projectId)
+    .single()
+
+  const projectCompleted = refreshed?.status === "completed"
+
   revalidatePath(`/projects/${projectId}`)
   revalidatePath("/")
   revalidatePath("/tasks")
 
-  return { success: true }
+  return { success: true, projectCompleted }
 }

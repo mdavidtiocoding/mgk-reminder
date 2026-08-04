@@ -65,6 +65,7 @@ export function StepTimeline({ project, variant = "classic" }: StepTimelineProps
   const [direction, setDirection] = useState<"left" | "right" | null>(null)
   const [animating, setAnimating] = useState(false)
   const pendingStage = useRef<number | null>(null)
+  const didScroll = useRef(false)
 
   function goToStage(stage: number) {
     const clamped = Math.max(1, Math.min(TOTAL_STAGE_COUNT, stage))
@@ -98,6 +99,30 @@ export function StepTimeline({ project, variant = "classic" }: StepTimelineProps
     return () => window.removeEventListener(JUMP_TO_STAGE_EVENT, onJump)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStage, animating])
+
+  useEffect(() => {
+    if (didScroll.current) return
+    const params = new URLSearchParams(window.location.search)
+    const stepCode =
+      params.get("step") ??
+      (window.location.hash.startsWith("#step-")
+        ? window.location.hash.slice("#step-".length)
+        : null)
+    if (!stepCode) return
+    const step = project.steps.find((s) => s.code === stepCode)
+    if (!step) return
+    didScroll.current = true
+    if (step.stage !== currentStage) {
+      setCurrentStage(step.stage)
+    }
+    const timer = window.setTimeout(() => {
+      document.getElementById(`step-${stepCode}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      })
+    }, 280)
+    return () => window.clearTimeout(timer)
+  }, [project.steps, currentStage])
 
   const group = stages.find((g) => g.stage === currentStage) ?? stages[0]
   const displayItems = useMemo(

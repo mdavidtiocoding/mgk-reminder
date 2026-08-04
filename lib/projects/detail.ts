@@ -86,6 +86,8 @@ export type StepTimelineItem = {
   completionMode?: StepCompletionMode
   dateInputs?: DateInputField[]
   hasOutcome?: boolean
+  outcomeRescheduleField?: import("@/lib/steps").DateField
+  bastChoice?: boolean
   substeps: SubstepDefinition[]
   substepCompletions: SubstepCompletion[]
   canComplete: boolean
@@ -246,6 +248,8 @@ export async function getProjectDetail(
       completionMode: step.completionMode,
       dateInputs: step.dateInputs,
       hasOutcome: step.hasOutcome,
+      outcomeRescheduleField: step.outcomeRescheduleField,
+      bastChoice: step.bastChoice,
       substeps: step.substeps,
       substepCompletions: stepSubstepCompletions,
       canComplete: computed.status === "active" && userCanCompleteStep,

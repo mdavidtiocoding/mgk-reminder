@@ -14,6 +14,8 @@ export type ProjectStatus = "active" | "completed" | "on_hold"
 /** Project-level dates captured during the flow (Shipping inputs these). */
 export type DateField = "ex_work_date" | "etd_date" | "eta_date" | "mos_date"
 
+export const BAST2_STEP_CODES = ["P9", "A8"] as const
+
 export const DATE_FIELD_LABELS: Record<DateField, string> = {
   ex_work_date: "Ex Work Date",
   etd_date: "ETD (Estimated Time of Departure)",
@@ -56,6 +58,13 @@ export type StepDefinition = {
   dateInputs?: DateInputField[]
   /** Whether this step has an OK / reschedule outcome (e.g. survey result). */
   hasOutcome?: boolean
+  /** Project date field updated when outcome = reschedule (default: ex_work_date). */
+  outcomeRescheduleField?: DateField
+  /**
+   * When completing this step, ask if BAST 2 is needed.
+   * If user chooses "BAST 1 only", later BAST 2 steps are auto-skipped.
+   */
+  bastChoice?: boolean
   trigger: StepTrigger
 }
 
@@ -155,6 +164,7 @@ export const STEPS: StepDefinition[] = [
     order: 10,
     prerequisites: ["S1"],
     hasOutcome: true,
+    outcomeRescheduleField: "ex_work_date",
     trigger: { type: "before_date", dateField: "ex_work_date", offsetDays: 7, repeatDays: 1 },
   },
 
@@ -197,6 +207,8 @@ export const STEPS: StepDefinition[] = [
       { field: "etd_date", label: "ETD (Estimated Time of Departure)" },
       { field: "eta_date", label: "ETA (Estimated Time of Arrival)" },
     ],
+    hasOutcome: true,
+    outcomeRescheduleField: "etd_date",
     trigger: { type: "after_step", stepCode: "S3", offsetDays: 2, repeatDays: 1 },
   },
   {
@@ -205,9 +217,12 @@ export const STEPS: StepDefinition[] = [
     division: "shipping",
     stage: 4,
     order: 15,
-    prerequisites: ["P2"],
+    prerequisites: ["P2", "S4"],
     dateInputs: [{ field: "mos_date", label: "MOS Date (Material on Site)" }],
-    trigger: { type: "immediate" },
+    hasOutcome: true,
+    outcomeRescheduleField: "mos_date",
+    // Default: 3 hari sebelum ETA (editable di Flow Config). Butuh ETA dari S4.
+    trigger: { type: "before_date", dateField: "eta_date", offsetDays: 3, repeatDays: 1 },
   },
   {
     code: "F2",
@@ -275,7 +290,8 @@ export const STEPS: StepDefinition[] = [
     stage: 6,
     order: 22,
     prerequisites: ["S5"],
-    checklist: ["Subkon", "Kos", "Steger", "Motor", "Tiket luar kota"],
+    // Subkon = pilihan Ya/Tidak (bukan ceklist biasa); item lain tetap checklist
+    checklist: ["Subkon: Ya/Tidak", "Kos", "Steger", "Motor", "Tiket luar kota"],
     trigger: { type: "before_date", dateField: "mos_date", offsetDays: 10 },
   },
 
@@ -343,6 +359,7 @@ export const STEPS: StepDefinition[] = [
     stage: 8,
     order: 29,
     prerequisites: ["A6"],
+    bastChoice: true,
     trigger: { type: "after_step", stepCode: "A6", offsetDays: 1 },
   },
   {

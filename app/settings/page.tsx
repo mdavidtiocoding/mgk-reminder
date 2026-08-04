@@ -175,14 +175,32 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                   Konfigurasi Flow Step
                 </CardTitle>
                 <CardDescription>
-                  Atur prasyarat (prerequisites) setiap step — step apa yang
-                  harus selesai sebelum step ini bisa aktif.
+                  Atur prasyarat, checklist, dan trigger reminder (mis. 3 hari
+                  sebelum ETA) tanpa coding. Filter per divisi di halaman Flow.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex flex-col gap-3">
                 <Button size="sm" asChild>
                   <Link href="/settings/flow">Kelola Flow</Link>
                 </Button>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ["shipping", "Shipping"],
+                      ["project", "Project"],
+                      ["finance", "Finance"],
+                      ["ar", "AR"],
+                      ["logistik", "Logistik"],
+                      ["marketing", "Marketing"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <Button key={value} size="sm" variant="outline" asChild>
+                      <Link href={`/settings/flow?division=${value}`}>
+                        {label}
+                      </Link>
+                    </Button>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </>

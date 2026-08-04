@@ -22,6 +22,7 @@ type TaskCardProps = {
 
 export function TaskCard({ task }: TaskCardProps) {
   const hasSubsteps = task.substeps.length > 0
+  const projectStepHref = `/projects/${task.projectId}?step=${encodeURIComponent(task.stepCode)}#step-${task.stepCode}`
   const inlineChecklist = usesInlineChecklist({
     completionMode: task.completionMode,
     checklist: task.checklist,
@@ -35,10 +36,7 @@ export function TaskCard({ task }: TaskCardProps) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <CardTitle className="truncate">
-              <Link
-                href={`/projects/${task.projectId}`}
-                className="hover:underline"
-              >
+              <Link href={projectStepHref} className="hover:underline">
                 {task.projectName}
               </Link>
             </CardTitle>
@@ -96,11 +94,13 @@ export function TaskCard({ task }: TaskCardProps) {
               checklist={task.checklist}
               dateInputs={task.dateInputs}
               hasOutcome={task.hasOutcome}
+              outcomeRescheduleField={task.outcomeRescheduleField}
+              bastChoice={task.bastChoice}
             />
           )}
           <Button variant={hasSubsteps ? "default" : "outline"} size="sm" asChild>
-            <Link href={`/projects/${task.projectId}`}>
-              {hasSubsteps ? "Buka & selesaikan" : "Detail"}
+            <Link href={projectStepHref}>
+              {hasSubsteps ? "Buka & selesaikan" : "Ke step ini"}
             </Link>
           </Button>
         </div>
