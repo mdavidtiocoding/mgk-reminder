@@ -209,10 +209,6 @@ export async function getProjectDetail(
     substepCompletions,
   })
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
   const steps: StepTimelineItem[] = computedSteps.map((computed) => {
     const step = computed.definition
     const completion = completionByCode.get(step.code)
@@ -225,8 +221,6 @@ export async function getProjectDetail(
     const pendingReminders = getPendingReminderSubsteps(step.substeps, completedSubstepKeys)
     const userCanCompleteStep =
       project.status === "active" && canUserCompleteStep(userDivision, step.division)
-    const userCanEditStep = canUserCompleteStep(userDivision, step.division)
-    const completedById = completion?.completed_by
 
     return {
       code: step.code,
@@ -258,12 +252,7 @@ export async function getProjectDetail(
       canEditSubsteps:
         userCanCompleteStep &&
         (computed.status === "active" || pendingReminders.length > 0),
-      canUndo:
-        computed.status === "done" &&
-        userCanEditStep &&
-        (userDivision === "admin" ||
-          !completedById ||
-          completedById === user?.id),
+      canUndo: computed.status === "done" && userDivision === "admin",
       hasPendingReminderSubsteps: pendingReminders.length > 0,
       flowWarnings: [],
     }

@@ -58,13 +58,13 @@ export async function undoStep(
     return { success: false, error: "Project tidak ditemukan." }
   }
 
+  if (profile?.division !== "admin") {
+    return { success: false, error: "Hanya admin yang bisa membatalkan step selesai." }
+  }
+
   const step = runtimeSteps.find((s) => s.code === stepCode)
   if (!step) {
     return { success: false, error: "Step tidak dikenali." }
-  }
-
-  if (profile?.division !== "admin" && profile?.division !== step.division) {
-    return { success: false, error: "Anda tidak berwenang mengubah step ini." }
   }
 
   const completions = (project.step_completions ?? []).map((row) => ({
@@ -75,18 +75,6 @@ export async function undoStep(
   const doneCodes = buildDoneCodes(completions, substepCompletions, runtimeSteps)
   if (!doneCodes.has(stepCode)) {
     return { success: false, error: "Step ini belum selesai." }
-  }
-
-  const completionRow = (project.step_completions ?? []).find(
-    (row) => row.step_code === stepCode
-  )
-
-  if (
-    profile?.division !== "admin" &&
-    completionRow?.completed_by &&
-    completionRow.completed_by !== user.id
-  ) {
-    return { success: false, error: "Hanya yang menyelesaikan atau admin yang bisa undo." }
   }
 
   const blockedDependents = runtimeSteps.filter((candidate) => {
