@@ -1,12 +1,11 @@
 "use client"
 
-import { ArrowDown, AlertTriangle, CheckCircle2, Circle, Lock } from "lucide-react"
+import { ArrowDown, CheckCircle2, Circle, Lock } from "lucide-react"
 
 import { MarkDoneDialog } from "@/components/project/mark-done-dialog"
 import { SetFollowUpDialog } from "@/components/project/set-followup-dialog"
 import { StepChecklistCompletion } from "@/components/project/step-checklist-completion"
 import { StepRescheduleNotice } from "@/components/project/step-reschedule-notice"
-import { StepUndoButton } from "@/components/project/step-undo-button"
 import { SubstepActions } from "@/components/project/substep-actions"
 import { Badge } from "@/components/ui/badge"
 import { formatDateTime, formatFollowUpSchedule } from "@/lib/format"
@@ -37,55 +36,26 @@ export function StepTimelineStatusIcon({
   )
 }
 
-function StepFlowWarning({ codes }: { codes: string[] }) {
-  if (codes.length === 0) return null
-
-  return (
-    <div
-      className="flex items-start gap-2 rounded-md border border-amber-300/80 bg-amber-50 px-2.5 py-2 text-amber-950"
-      role="status"
-    >
-      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
-      <p className="text-xs leading-snug">
-        <span className="font-medium">Step sebelumnya belum selesai:</span>{" "}
-        {codes.join(", ")}
-      </p>
-    </div>
-  )
-}
-
 function StepHeader({ step }: { step: StepTimelineItem }) {
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-muted-foreground">
-            Step {step.code} · Tahap {step.stage}
-          </p>
-          <p className="mt-0.5 font-medium leading-snug">{step.name}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {step.flowWarnings.length > 0 && (
-            <span
-              className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
-              title={`Step sebelumnya belum selesai: ${step.flowWarnings.join(", ")}`}
-            >
-              <AlertTriangle className="size-3" aria-hidden />
-              Peringatan
-            </span>
-          )}
-          <span
-            className={cn(
-              "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-              DIVISION_BADGE_STYLES[step.division].badge
-            )}
-          >
-            {step.divisionLabel}
-          </span>
-          {step.status === "active" && <Badge variant="default">Aktif</Badge>}
-        </div>
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-muted-foreground">
+          Step {step.code} · Tahap {step.stage}
+        </p>
+        <p className="mt-0.5 font-medium leading-snug">{step.name}</p>
       </div>
-      <StepFlowWarning codes={step.flowWarnings} />
+      <div className="flex shrink-0 items-center gap-2">
+        <span
+          className={cn(
+            "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+            DIVISION_BADGE_STYLES[step.division].badge
+          )}
+        >
+          {step.divisionLabel}
+        </span>
+        {step.status === "active" && <Badge variant="default">Aktif</Badge>}
+      </div>
     </div>
   )
 }
@@ -117,9 +87,6 @@ function StepDoneBody({
         )}
         {step.note && <p className="italic">&ldquo;{step.note}&rdquo;</p>}
       </div>
-      {step.canUndo && (
-        <StepUndoButton projectId={project.id} stepCode={step.code} />
-      )}
       {step.hasPendingReminderSubsteps && step.substeps.length > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
           <p className="mb-2 text-xs font-medium text-amber-900">
@@ -156,7 +123,6 @@ function StepActiveBody({
 
   return (
     <div className={cn("space-y-3", compact ? "mt-2" : "mt-3")}>
-      {!compact && <StepFlowWarning codes={step.flowWarnings} />}
       {!compact && (
         <p className="text-sm text-muted-foreground">
           PIC: <span className="text-foreground">{step.divisionLabel}</span>
@@ -266,7 +232,6 @@ export function StepTimelineCard({
         "min-w-0 flex-1 rounded-xl border border-l-4 p-4",
         DIVISION_BADGE_STYLES[step.division].border,
         step.status === "active" && "border-primary/40 bg-primary/5",
-        step.flowWarnings.length > 0 && "border-amber-300/60 bg-amber-50/40",
         step.status === "locked" && !nested && "opacity-60",
         nested && step.status === "locked" && "opacity-80"
       )}

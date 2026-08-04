@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { computeProjectSteps, type CompletionInfo } from "@/lib/projects/active-steps"
-import { buildStepFlowWarnings } from "@/lib/projects/flow-warnings"
 import {
   type DateField,
   type DateInputField,
@@ -25,7 +24,6 @@ import { indexLatestReschedules, isRescheduleChannel } from "@/lib/projects/resc
 type CompletionRow = {
   step_code: string
   completed_at: string
-  completed_by: string
   note: string | null
   outcome: string | null
   profile: { name: string } | { name: string }[] | null
@@ -89,10 +87,7 @@ export type StepTimelineItem = {
   substepCompletions: SubstepCompletion[]
   canComplete: boolean
   canEditSubsteps: boolean
-  canUndo: boolean
   hasPendingReminderSubsteps: boolean
-  /** Step sebelumnya / prasyarat belum selesai padahal step ini sudah berjalan. */
-  flowWarnings: string[]
 }
 
 export type ProjectDetail = {
@@ -153,7 +148,6 @@ export async function getProjectDetail(
       step_completions(
         step_code,
         completed_at,
-        completed_by,
         note,
         outcome,
         profile:profiles(name)
@@ -209,10 +203,6 @@ export async function getProjectDetail(
     substepCompletions,
   })
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
   const steps: StepTimelineItem[] = computedSteps.map((computed) => {
     const step = computed.definition
     const completion = completionByCode.get(step.code)
@@ -225,8 +215,6 @@ export async function getProjectDetail(
     const pendingReminders = getPendingReminderSubsteps(step.substeps, completedSubstepKeys)
     const userCanCompleteStep =
       project.status === "active" && canUserCompleteStep(userDivision, step.division)
-    const userCanEditStep = canUserCompleteStep(userDivision, step.division)
-    const completedById = completion?.completed_by
 
     return {
       code: step.code,
@@ -254,40 +242,14 @@ export async function getProjectDetail(
       hasOutcome: step.hasOutcome,
       substeps: step.substeps,
       substepCompletions: stepSubstepCompletions,
-      canComplete: computed.status === "active" && userCanCompleteStep,
+      canComplete:
+        computed.status === "active" && userCanCompleteStep,
       canEditSubsteps:
         userCanCompleteStep &&
         (computed.status === "active" || pendingReminders.length > 0),
-      canUndo:
-        computed.status === "done" &&
-        userCanEditStep &&
-        (userDivision === "admin" ||
-          !completedById ||
-          completedById === user?.id),
       hasPendingReminderSubsteps: pendingReminders.length > 0,
-      flowWarnings: [],
     }
   })
-
-  const stepSnapshots = steps.map((s) => ({
-    code: s.code,
-    order: s.order,
-    status: s.status,
-    prerequisites: s.prerequisites,
-  }))
-
-  for (const timelineStep of steps) {
-    timelineStep.flowWarnings = buildStepFlowWarnings(
-      {
-        code: timelineStep.code,
-        order: timelineStep.order,
-        status: timelineStep.status,
-        prerequisites: timelineStep.prerequisites,
-        substepCompletionCount: timelineStep.substepCompletions.length,
-      },
-      stepSnapshots
-    )
-  }
 
   const doneCount = steps.filter((s) => s.status === "done").length
   const activeStages = steps
