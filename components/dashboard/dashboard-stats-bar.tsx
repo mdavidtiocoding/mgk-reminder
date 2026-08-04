@@ -1,29 +1,30 @@
 import type { DashboardProject } from "@/lib/projects/dashboard"
+import { userHasDivision } from "@/lib/auth/user-divisions"
 import type { Division } from "@/lib/steps"
 
 type DashboardStatsBarProps = {
   projects: DashboardProject[]
-  userDivision?: string | null
+  userDivisions?: Division[]
 }
 
 function countMyTaskProjects(
   projects: DashboardProject[],
-  userDivision?: string | null
+  userDivisions: Division[] = []
 ): number {
-  if (!userDivision) return 0
+  if (userDivisions.length === 0) return 0
   return projects.filter((project) =>
-    project.activeSteps.some(
-      (step) => userDivision === "admin" || step.division === userDivision
+    project.activeSteps.some((step) =>
+      userHasDivision(userDivisions, step.division)
     )
   ).length
 }
 
 export function DashboardStatsBar({
   projects,
-  userDivision,
+  userDivisions = [],
 }: DashboardStatsBarProps) {
   const total = projects.length
-  const myTasks = countMyTaskProjects(projects, userDivision as Division | undefined)
+  const myTasks = countMyTaskProjects(projects, userDivisions)
   const hogger = projects.filter((project) => project.isHogger).length
 
   const items = [

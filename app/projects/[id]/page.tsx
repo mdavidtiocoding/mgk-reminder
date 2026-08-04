@@ -8,8 +8,12 @@ import { StepTimeline } from "@/components/project/step-timeline"
 import { AppShell } from "@/components/layout/app-shell"
 import { FEATURES } from "@/lib/features"
 import { getProjectDetail } from "@/lib/projects/detail"
+import {
+  isUserAdmin,
+  resolveUserDivisions,
+  userHasDivision,
+} from "@/lib/auth/user-divisions"
 import { getUiTheme } from "@/lib/ui/theme.server"
-import type { Division } from "@/lib/steps"
 import { createClient } from "@/lib/supabase/server"
 
 type ProjectDetailPageProps = {
@@ -31,16 +35,16 @@ export default async function ProjectDetailPage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("name, division")
+    .select("name, division, divisions")
     .eq("id", user.id)
     .single()
 
-  const userDivision = profile?.division as Division | undefined
-  const isAdmin = userDivision === "admin"
+  const userDivisions = resolveUserDivisions(profile)
+  const isAdmin = isUserAdmin(userDivisions)
   const theme = await getUiTheme()
 
   const [project, adhocCases, { data: customers }] = await Promise.all([
-    getProjectDetail(supabase, id, userDivision),
+    getProjectDetail(supabase, id, userDivisions),
     FEATURES.adhocCases ? getAdhocCases(id) : Promise.resolve([]),
     supabase.from("customers").select("id, name").order("name"),
   ])
@@ -51,14 +55,15 @@ export default async function ProjectDetailPage({
 
   const showAdhoc =
     FEATURES.adhocCases &&
-    (userDivision === "admin" || userDivision === "project" || adhocCases.length > 0)
+    (isAdmin || userHasDivision(userDivisions, "project") || adhocCases.length > 0)
   const canManageAdhoc =
-    userDivision === "admin" || userDivision === "project"
+    isAdmin || userHasDivision(userDivisions, "project")
 
   return (
     <AppShell
       userName={profile?.name ?? user.email ?? "User"}
       division={profile?.division}
+      userDivisions={userDivisions}
     >
       <main
         className={

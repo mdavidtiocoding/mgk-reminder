@@ -1,9 +1,14 @@
 import { redirect } from "next/navigation"
 
-import { isUserAdmin, resolveUserDivisions } from "@/lib/auth/user-divisions"
+import {
+  getPrimaryDivision,
+  isUserAdmin,
+  resolveUserDivisions,
+} from "@/lib/auth/user-divisions"
 import { createClient } from "@/lib/supabase/server"
+import type { Division } from "@/lib/steps"
 
-export async function requireAdmin() {
+export async function getCurrentUserContext() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -15,19 +20,21 @@ export async function requireAdmin() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("name, division, divisions, email, status")
+    .select("name, email, division, divisions, status")
     .eq("id", user.id)
     .single()
 
   const userDivisions = resolveUserDivisions(profile)
-  if (!isUserAdmin(userDivisions) || profile?.status !== "active") {
-    redirect("/")
-  }
+  const primaryDivision =
+    (profile?.division as Division | null) ??
+    getPrimaryDivision(userDivisions)
 
   return {
+    supabase,
     user,
     profile,
     userDivisions,
-    supabase,
+    primaryDivision,
+    isAdmin: isUserAdmin(userDivisions),
   }
 }

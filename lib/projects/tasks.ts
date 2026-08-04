@@ -8,6 +8,7 @@ import {
   type CompletionInfo,
 } from "@/lib/projects/active-steps"
 import { buildProjectSearchHaystack, matchesTokenSearch } from "@/lib/search/match"
+import { userHasDivision } from "@/lib/auth/user-divisions"
 import { type Division, getDivisionLabel } from "@/lib/steps"
 import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
 import {
@@ -81,16 +82,15 @@ function daysSince(date: Date): number {
 
 function isTaskForUser(
   stepDivision: Division,
-  userDivision: Division | null | undefined
+  userDivisions: Division[]
 ): boolean {
-  if (!userDivision) return false
-  if (userDivision === "admin") return true
-  return userDivision === stepDivision
+  if (userDivisions.length === 0) return false
+  return userHasDivision(userDivisions, stepDivision)
 }
 
 export async function getMyTasks(
   supabase: SupabaseClient,
-  userDivision?: Division | null,
+  userDivisions: Division[] = [],
   searchQuery?: string
 ): Promise<MyTask[]> {
   const [{ data, error }, thresholds, runtimeSteps] = await Promise.all([
@@ -150,7 +150,7 @@ export async function getMyTasks(
 
     for (const active of getActiveComputedSteps(computedSteps)) {
       const step = active.definition
-      if (!isTaskForUser(step.division, userDivision)) continue
+      if (!isTaskForUser(step.division, userDivisions)) continue
 
       const waitingDays = active.unlockedAt ? daysSince(active.unlockedAt) : 0
       const stepSubstepCompletions = substepCompletions.filter(
@@ -170,7 +170,7 @@ export async function getMyTasks(
         waitingDays,
         isHogger: waitingDays > thresholds.hoggerDays,
         isWaitingWarning: waitingDays > thresholds.warningDays,
-        canComplete: userDivision === "admin" || userDivision === step.division,
+        canComplete: userHasDivision(userDivisions, step.division),
         substeps: step.substeps,
         substepCompletions: stepSubstepCompletions,
         nextSubstepLabel: nextSubstep?.label ?? null,
@@ -201,7 +201,7 @@ export async function getMyTasks(
     for (const computed of computedSteps) {
       if (computed.status !== "done") continue
       const step = computed.definition
-      if (!isTaskForUser(step.division, userDivision)) continue
+      if (!isTaskForUser(step.division, userDivisions)) continue
 
       const completedKeys = getCompletedSubstepKeys(step.code, substepCompletions)
       const pendingReminders = getPendingReminderSubsteps(step.substeps, completedKeys)
@@ -226,7 +226,7 @@ export async function getMyTasks(
         waitingDays,
         isHogger: waitingDays > thresholds.hoggerDays,
         isWaitingWarning: waitingDays > thresholds.warningDays,
-        canComplete: userDivision === "admin" || userDivision === step.division,
+        canComplete: userHasDivision(userDivisions, step.division),
         substeps: step.substeps,
         substepCompletions: stepSubstepCompletions,
         nextSubstepLabel: nextSubstep ? `${nextSubstep.label} (reminder)` : null,

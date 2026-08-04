@@ -7,6 +7,7 @@ import { DashboardStatsBar } from "@/components/dashboard/dashboard-stats-bar"
 import { PushOnboardingBanner } from "@/components/notifications/push-onboarding-banner"
 import { AppShell } from "@/components/layout/app-shell"
 import { getDashboardProjects, type DashboardProject } from "@/lib/projects/dashboard"
+import { resolveUserDivisions } from "@/lib/auth/user-divisions"
 import { getUiTheme } from "@/lib/ui/theme.server"
 import { createClient } from "@/lib/supabase/server"
 
@@ -32,9 +33,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("name, division")
+    .select("name, division, divisions")
     .eq("id", user.id)
     .single()
+
+  const userDivisions = resolveUserDivisions(profile)
 
   const filters = await searchParams
   const theme = await getUiTheme()
@@ -53,6 +56,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     <AppShell
       userName={profile?.name ?? user.email ?? "User"}
       division={profile?.division}
+      userDivisions={userDivisions}
     >
       <main
         className={
@@ -66,7 +70,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         {theme === "premium" && (
           <DashboardStatsBar
             projects={projects}
-            userDivision={profile?.division}
+            userDivisions={userDivisions}
           />
         )}
 

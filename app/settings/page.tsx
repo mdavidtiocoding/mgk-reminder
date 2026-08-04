@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { getAppThresholds } from "@/lib/app-config"
+import { isUserAdmin, resolveUserDivisions } from "@/lib/auth/user-divisions"
 import { getUiTheme } from "@/lib/ui/theme.server"
 import { createClient } from "@/lib/supabase/server"
 
@@ -37,11 +38,12 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("name, division, notif_email, notif_push, google_calendar_connected")
+    .select("name, division, divisions, notif_email, notif_push, google_calendar_connected")
     .eq("id", user.id)
     .single()
 
-  const isAdmin = profile?.division === "admin"
+  const userDivisions = resolveUserDivisions(profile)
+  const isAdmin = isUserAdmin(userDivisions)
   const { google: googleStatus, msg: googleErrorMsg } = await searchParams
 
   const headersList = await headers()
@@ -59,6 +61,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
     <AppShell
       userName={profile?.name ?? user.email ?? "User"}
       division={profile?.division}
+      userDivisions={userDivisions}
     >
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-6">
         <h2 className="text-base font-medium">Settings</h2>

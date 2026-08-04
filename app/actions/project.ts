@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
 import type { ProjectStatus } from "@/lib/steps"
+import { isUserAdmin, resolveUserDivisions } from "@/lib/auth/user-divisions"
 import { createClient } from "@/lib/supabase/server"
 
 export type ProjectActionResult =
@@ -19,7 +20,7 @@ async function requireUser() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("division, status")
+    .select("division, divisions, status")
     .eq("id", user.id)
     .single()
 
@@ -75,7 +76,8 @@ export async function updateProjectStatus(
 ): Promise<ProjectActionResult> {
   const { supabase, user, profile } = await requireUser()
   if (!user) return { success: false, error: "Unauthorized" }
-  if (profile?.division !== "admin") {
+  const userDivisions = resolveUserDivisions(profile)
+  if (!isUserAdmin(userDivisions)) {
     return { success: false, error: "Admin only" }
   }
 
@@ -99,7 +101,8 @@ export async function updateProjectStatus(
 export async function deleteProject(projectId: string): Promise<ProjectActionResult> {
   const { supabase, user, profile } = await requireUser()
   if (!user) return { success: false, error: "Unauthorized" }
-  if (profile?.division !== "admin") {
+  const userDivisions = resolveUserDivisions(profile)
+  if (!isUserAdmin(userDivisions)) {
     return { success: false, error: "Admin only" }
   }
 

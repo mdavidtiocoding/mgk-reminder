@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { formatAuthError } from "@/lib/auth/auth-errors"
 import { createClient } from "@/lib/supabase/client"
 
 export function RegisterForm() {
@@ -46,7 +47,7 @@ export function RegisterForm() {
     })
 
     if (signUpError) {
-      setError(signUpError.message)
+      setError(formatAuthError(signUpError.message))
       setLoading(false)
       return
     }

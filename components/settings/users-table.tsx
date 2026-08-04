@@ -3,7 +3,11 @@
 import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 
-import { deleteUser, updateUserDivision, updateUserStatus } from "@/app/actions/users"
+import { deleteUser, updateUserDivisions, updateUserStatus } from "@/app/actions/users"
+import {
+  DivisionMultiSelect,
+  formatDivisionSelection,
+} from "@/components/settings/division-multi-select"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -24,14 +28,16 @@ import {
   PROFILE_STATUS_LABELS,
   type ProfileStatus,
 } from "@/lib/auth/profile-status"
+import { resolveUserDivisions } from "@/lib/auth/user-divisions"
 import { formatDate } from "@/lib/format"
-import { DIVISION_LABELS, type Division } from "@/lib/steps"
+import type { Division } from "@/lib/steps"
 
 export type UserRow = {
   id: string
   name: string
   email: string
   division: Division | null
+  divisions?: Division[] | null
   status: ProfileStatus
   created_at: string
 }
@@ -58,7 +64,7 @@ export function UsersTable({
           <tr className="border-b bg-muted/40 text-left">
             <th className="w-[14%] px-3 py-2 font-medium">Nama</th>
             <th className="w-[24%] px-3 py-2 font-medium">Email</th>
-            <th className="w-[18%] px-3 py-2 font-medium">Division</th>
+            <th className="w-[18%] px-3 py-2 font-medium">Divisi</th>
             <th className="w-[22%] px-3 py-2 font-medium">Status</th>
             <th className="w-[12%] px-3 py-2 font-medium">Bergabung</th>
             <th className="w-[10%] px-3 py-2 font-medium">Aksi</th>
@@ -87,8 +93,19 @@ function UserTableRow({
 }) {
   const router = useRouter()
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [divisionOpen, setDivisionOpen] = useState(false)
+  const [divisionError, setDivisionError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  const currentDivisions = resolveUserDivisions(user)
+  const [draftDivisions, setDraftDivisions] = useState<Division[]>(currentDivisions)
+
+  function openDivisionDialog() {
+    setDraftDivisions(currentDivisions)
+    setDivisionError(null)
+    setDivisionOpen(true)
+  }
 
   function handleDelete() {
     setDeleteError(null)
@@ -103,9 +120,15 @@ function UserTableRow({
     })
   }
 
-  function handleDivisionChange(division: Division) {
+  function handleSaveDivisions() {
+    setDivisionError(null)
     startTransition(async () => {
-      await updateUserDivision(user.id, division)
+      const result = await updateUserDivisions(user.id, draftDivisions)
+      if (!result.success) {
+        setDivisionError(result.error)
+        return
+      }
+      setDivisionOpen(false)
       router.refresh()
     })
   }
@@ -124,24 +147,48 @@ function UserTableRow({
         {user.email}
       </td>
       <td className="px-3 py-2">
-        <Select
-          value={user.division ?? undefined}
-          onValueChange={(v) => handleDivisionChange(v as Division)}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 max-w-[180px] justify-start truncate text-xs font-normal"
           disabled={isPending}
+          onClick={openDivisionDialog}
         >
-          <SelectTrigger className="h-8 w-full max-w-[180px]" size="sm">
-            <SelectValue placeholder="Pilih division" />
-          </SelectTrigger>
-          <SelectContent position="popper" sideOffset={4} className="z-[100]">
-            {(Object.entries(DIVISION_LABELS) as [Division, string][]).map(
-              ([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              )
+          {formatDivisionSelection(currentDivisions)}
+        </Button>
+        <Dialog open={divisionOpen} onOpenChange={setDivisionOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Divisi — {user.name}</DialogTitle>
+              <DialogDescription>
+                Satu user bisa punya lebih dari satu divisi (mis. Logistik + Finance).
+              </DialogDescription>
+            </DialogHeader>
+            <DivisionMultiSelect
+              value={draftDivisions}
+              onChange={setDraftDivisions}
+              disabled={isPending}
+            />
+            {divisionError && (
+              <p className="text-sm text-destructive" role="alert">
+                {divisionError}
+              </p>
             )}
-          </SelectContent>
-        </Select>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                disabled={isPending}
+                onClick={() => setDivisionOpen(false)}
+              >
+                Batal
+              </Button>
+              <Button disabled={isPending} onClick={handleSaveDivisions}>
+                {isPending ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </td>
       <td className="px-3 py-2">
         {isSelf ? (

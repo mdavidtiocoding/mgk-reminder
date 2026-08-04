@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 
+import { isUserAdmin, resolveUserDivisions, userHasDivision } from "@/lib/auth/user-divisions"
 import { createClient } from "@/lib/supabase/server"
 
 export type AdhocActionResult =
@@ -20,11 +21,12 @@ async function assertCanManageAdhoc(projectId: string) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("division")
+    .select("division, divisions")
     .eq("id", user.id)
     .single()
 
-  if (profile?.division !== "admin" && profile?.division !== "project") {
+  const userDivisions = resolveUserDivisions(profile)
+  if (!isUserAdmin(userDivisions) && !userHasDivision(userDivisions, "project")) {
     return {
       ok: false as const,
       error: "Hanya division Project atau admin yang bisa kelola ad-hoc case.",

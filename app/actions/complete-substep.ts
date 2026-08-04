@@ -18,6 +18,11 @@ import {
   getCompletedSubstepKeys,
   getSubstepKind,
 } from "@/lib/steps/substeps"
+import {
+  isUserAdmin,
+  resolveUserDivisions,
+  userHasDivision,
+} from "@/lib/auth/user-divisions"
 import { createClient } from "@/lib/supabase/server"
 
 export type SubstepActionResult =
@@ -41,9 +46,11 @@ export async function completeSubstep(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("division")
+    .select("division, divisions")
     .eq("id", user.id)
     .single()
+
+  const userDivisions = resolveUserDivisions(profile)
 
   const runtimeSteps = await loadRuntimeSteps(supabase)
   const step = runtimeSteps.find((s) => s.code === stepCode)
@@ -60,7 +67,7 @@ export async function completeSubstep(
     return { success: false, error: "Sub-step tidak dikenali." }
   }
 
-  if (profile?.division !== "admin" && profile?.division !== step.division) {
+  if (!userHasDivision(userDivisions, step.division)) {
     return { success: false, error: "Anda tidak berwenang menyelesaikan step ini." }
   }
 
@@ -270,9 +277,11 @@ export async function undoSubstep(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("division")
+    .select("division, divisions")
     .eq("id", user.id)
     .single()
+
+  const userDivisions = resolveUserDivisions(profile)
 
   const runtimeSteps = await loadRuntimeSteps(supabase)
   const step = runtimeSteps.find((s) => s.code === stepCode)
@@ -280,7 +289,7 @@ export async function undoSubstep(
     return { success: false, error: "Step tidak punya sub-step." }
   }
 
-  if (profile?.division !== "admin" && profile?.division !== step.division) {
+  if (!userHasDivision(userDivisions, step.division)) {
     return { success: false, error: "Anda tidak berwenang mengubah step ini." }
   }
 
@@ -314,7 +323,7 @@ export async function undoSubstep(
 
   const row = (substepRows ?? []).find((r) => r.substep_key === substepKey)
   if (
-    profile?.division !== "admin" &&
+    !isUserAdmin(userDivisions) &&
     row?.completed_by !== user.id
   ) {
     return { success: false, error: "Hanya yang menyelesaikan atau admin yang bisa undo." }

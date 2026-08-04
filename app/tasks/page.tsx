@@ -6,7 +6,7 @@ import { AppShell } from "@/components/layout/app-shell"
 import { OutstandingBadge } from "@/components/layout/outstanding-badge"
 import { UrlSearchInput } from "@/components/search/url-search-input"
 import { getMyTasks, type MyTask } from "@/lib/projects/tasks"
-import type { Division } from "@/lib/steps"
+import { isUserAdmin, resolveUserDivisions } from "@/lib/auth/user-divisions"
 import { createClient } from "@/lib/supabase/server"
 
 type TaskGroup = {
@@ -57,19 +57,17 @@ export default async function MyTasksPage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("name, division")
+    .select("name, division, divisions")
     .eq("id", user.id)
     .single()
+
+  const userDivisions = resolveUserDivisions(profile)
 
   let tasks: MyTask[] = []
   const { q } = await searchParams
 
   try {
-    tasks = await getMyTasks(
-      supabase,
-      profile?.division as Division | undefined,
-      q
-    )
+    tasks = await getMyTasks(supabase, userDivisions, q)
   } catch {
     tasks = []
   }
@@ -80,6 +78,7 @@ export default async function MyTasksPage({
     <AppShell
       userName={profile?.name ?? user.email ?? "User"}
       division={profile?.division}
+      userDivisions={userDivisions}
       outstandingCount={tasks.length}
     >
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 p-6">
@@ -90,7 +89,7 @@ export default async function MyTasksPage({
           </div>
           <p className="text-sm text-muted-foreground">
             Step aktif yang menjadi tanggung jawab divisi kamu
-            {profile?.division === "admin" ? " (admin: semua step)" : ""}
+            {isUserAdmin(userDivisions) ? " (admin: semua step)" : ""}
             {" · "}
             <span className="font-medium text-foreground">
               {tasks.length} outstanding

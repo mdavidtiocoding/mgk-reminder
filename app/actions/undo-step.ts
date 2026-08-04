@@ -8,6 +8,7 @@ import {
 } from "@/lib/projects/active-steps"
 import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
 import { loadSubstepCompletionsForProject } from "@/lib/projects/substep-data"
+import { isUserAdmin, resolveUserDivisions } from "@/lib/auth/user-divisions"
 import { createClient } from "@/lib/supabase/server"
 
 export type UndoStepResult =
@@ -29,9 +30,11 @@ export async function undoStep(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("division")
+    .select("division, divisions")
     .eq("id", user.id)
     .single()
+
+  const userDivisions = resolveUserDivisions(profile)
 
   const [runtimeSteps, substepCompletions, { data: project }] = await Promise.all([
     loadRuntimeSteps(supabase),
@@ -58,7 +61,7 @@ export async function undoStep(
     return { success: false, error: "Project tidak ditemukan." }
   }
 
-  if (profile?.division !== "admin") {
+  if (!isUserAdmin(userDivisions)) {
     return { success: false, error: "Hanya admin yang bisa membatalkan step selesai." }
   }
 

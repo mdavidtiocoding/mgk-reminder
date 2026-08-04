@@ -2,7 +2,18 @@
 
 import { revalidatePath } from "next/cache"
 
+import { isUserAdmin, resolveUserDivisions } from "@/lib/auth/user-divisions"
 import { createClient } from "@/lib/supabase/server"
+
+async function assertAdminProfile(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("division, divisions")
+    .eq("id", userId)
+    .single()
+
+  return isUserAdmin(resolveUserDivisions(profile))
+}
 
 export async function updateNotificationPrefs(formData: FormData): Promise<void> {
   const supabase = await createClient()
@@ -39,13 +50,7 @@ export async function updateReminderConfig(
 
   if (!user) return { success: false, error: "Unauthorized" }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("division")
-    .eq("id", user.id)
-    .single()
-
-  if (profile?.division !== "admin") {
+  if (!(await assertAdminProfile(supabase, user.id))) {
     return { success: false, error: "Admin only" }
   }
 
@@ -82,13 +87,7 @@ export async function updateStepDefinitionName(stepCode: string, name: string) {
 
   if (!user) return { success: false, error: "Unauthorized" }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("division")
-    .eq("id", user.id)
-    .single()
-
-  if (profile?.division !== "admin") {
+  if (!(await assertAdminProfile(supabase, user.id))) {
     return { success: false, error: "Admin only" }
   }
 
@@ -134,13 +133,7 @@ export async function updateAppConfig(updates: {
 
   if (!user) return { success: false, error: "Unauthorized" }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("division")
-    .eq("id", user.id)
-    .single()
-
-  if (profile?.division !== "admin") {
+  if (!(await assertAdminProfile(supabase, user.id))) {
     return { success: false, error: "Admin only" }
   }
 

@@ -3,6 +3,12 @@
 import { revalidatePath } from "next/cache"
 
 import type { ProfileStatus } from "@/lib/auth/profile-status"
+import {
+  divisionsToPrimaryColumn,
+  isUserAdmin,
+  normalizeDivisionsInput,
+  resolveUserDivisions,
+} from "@/lib/auth/user-divisions"
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/admin"
 import type { Division } from "@/lib/steps"
@@ -23,6 +29,23 @@ const DIVISIONS: Division[] = [
 
 const PROFILE_STATUSES: ProfileStatus[] = ["pending", "active", "suspended"]
 
+function parseDivisionsFromForm(formData: FormData): Division[] {
+  const raw = formData.get("divisions")
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      if (Array.isArray(parsed)) {
+        return normalizeDivisionsInput(parsed as Division[])
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  const single = formData.get("division") as Division | null
+  return single ? normalizeDivisionsInput([single]) : []
+}
+
 async function assertAdmin() {
   const supabase = await createClient()
   const {
@@ -35,11 +58,12 @@ async function assertAdmin() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("division, status")
+    .select("division, divisions, status")
     .eq("id", user.id)
     .single()
 
-  if (profile?.division !== "admin" || profile?.status !== "active") {
+  const userDivisions = resolveUserDivisions(profile)
+  if (!isUserAdmin(userDivisions) || profile?.status !== "active") {
     return { ok: false as const, error: "Hanya admin yang bisa mengelola user." }
   }
 
@@ -55,7 +79,7 @@ export async function createUser(
   const name = (formData.get("name") as string)?.trim()
   const email = (formData.get("email") as string)?.trim().toLowerCase()
   const password = formData.get("password") as string
-  const division = formData.get("division") as Division
+  const divisions = parseDivisionsFromForm(formData)
 
   if (!name || !email || !password) {
     return { success: false, error: "Nama, email, dan password wajib diisi." }
@@ -65,10 +89,15 @@ export async function createUser(
     return { success: false, error: "Password minimal 6 karakter." }
   }
 
-  if (!DIVISIONS.includes(division)) {
+  if (divisions.length === 0) {
+    return { success: false, error: "Pilih minimal satu divisi." }
+  }
+
+  if (!divisions.every((d) => DIVISIONS.includes(d))) {
     return { success: false, error: "Division tidak valid." }
   }
 
+  const primaryDivision = divisionsToPrimaryColumn(divisions)
   const service = createServiceClient()
   if (!service) {
     return {
@@ -81,7 +110,7 @@ export async function createUser(
     email,
     password,
     email_confirm: true,
-    user_metadata: { name, division },
+    user_metadata: { name, division: primaryDivision },
   })
 
   if (error) {
@@ -93,7 +122,8 @@ export async function createUser(
       id: data.user.id,
       name,
       email,
-      division,
+      division: primaryDivision,
+      divisions,
       status: "active",
     })
   }
@@ -102,17 +132,23 @@ export async function createUser(
   return { success: true }
 }
 
-export async function updateUserDivision(
+export async function updateUserDivisions(
   userId: string,
-  division: Division
+  divisions: Division[]
 ): Promise<UserActionResult> {
   const auth = await assertAdmin()
   if (!auth.ok) return { success: false, error: auth.error }
 
-  if (!DIVISIONS.includes(division)) {
+  const normalized = normalizeDivisionsInput(divisions)
+  if (normalized.length === 0) {
+    return { success: false, error: "Pilih minimal satu divisi." }
+  }
+
+  if (!normalized.every((d) => DIVISIONS.includes(d))) {
     return { success: false, error: "Division tidak valid." }
   }
 
+  const primaryDivision = divisionsToPrimaryColumn(normalized)
   const service = createServiceClient()
   if (!service) {
     return {
@@ -123,7 +159,7 @@ export async function updateUserDivision(
 
   const { error } = await service
     .from("profiles")
-    .update({ division })
+    .update({ division: primaryDivision, divisions: normalized })
     .eq("id", userId)
 
   if (error) {
@@ -132,6 +168,14 @@ export async function updateUserDivision(
 
   revalidatePath("/settings/users")
   return { success: true }
+}
+
+/** @deprecated Use updateUserDivisions — kept for compatibility. */
+export async function updateUserDivision(
+  userId: string,
+  division: Division
+): Promise<UserActionResult> {
+  return updateUserDivisions(userId, [division])
 }
 
 export async function updateUserStatus(
@@ -165,14 +209,14 @@ export async function updateUserStatus(
   if (status === "active") {
     const { data: target } = await service
       .from("profiles")
-      .select("division")
+      .select("division, divisions")
       .eq("id", userId)
       .single()
 
-    if (!target?.division) {
+    if (resolveUserDivisions(target).length === 0) {
       return {
         success: false,
-        error: "Tetapkan division terlebih dahulu sebelum mengaktifkan user.",
+        error: "Tetapkan divisi terlebih dahulu sebelum mengaktifkan user.",
       }
     }
   }
@@ -230,7 +274,7 @@ export async function listUsers() {
 
   const { data: profiles } = await service
     .from("profiles")
-    .select("id, name, email, division, status, created_at")
+    .select("id, name, email, division, divisions, status, created_at")
     .order("created_at", { ascending: false })
 
   return profiles ?? []

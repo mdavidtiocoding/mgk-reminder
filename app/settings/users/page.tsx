@@ -14,16 +14,18 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { requireAdmin } from "@/lib/auth/require-admin"
+import { resolveUserDivisions } from "@/lib/auth/user-divisions"
 import type { Division } from "@/lib/steps"
 
 export default async function UserManagementPage() {
-  const { profile, user } = await requireAdmin()
+  const { profile, user, userDivisions } = await requireAdmin()
   const users = await listUsers()
 
   return (
     <AppShell
       userName={profile?.name ?? user.email ?? "User"}
       division={profile?.division}
+      userDivisions={userDivisions}
     >
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6">
         <Button variant="ghost" size="sm" className="w-fit" asChild>
@@ -36,7 +38,7 @@ export default async function UserManagementPage() {
         <div>
           <h2 className="text-base font-medium">User Management</h2>
           <p className="text-sm text-muted-foreground">
-            Admin only — kelola user, assign division, dan setujui pendaftar baru.
+            Admin only — kelola user, assign divisi (bisa lebih dari satu), dan setujui pendaftar baru.
           </p>
         </div>
 
@@ -64,6 +66,7 @@ export default async function UserManagementPage() {
               users={users.map((u) => ({
                 ...u,
                 division: (u.division as Division | null) ?? null,
+                divisions: (u.divisions as Division[] | null) ?? null,
                 status: u.status as "pending" | "active" | "suspended",
               }))}
               currentUserId={user.id}

@@ -4,21 +4,15 @@ import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 
 import { createUser } from "@/app/actions/users"
+import { DivisionMultiSelect } from "@/components/settings/division-multi-select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { DIVISION_LABELS, type Division } from "@/lib/steps"
+import type { Division } from "@/lib/steps"
 
 export function CreateUserForm() {
   const router = useRouter()
-  const [division, setDivision] = useState<Division>("marketing")
+  const [divisions, setDivisions] = useState<Division[]>(["marketing"])
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -30,7 +24,7 @@ export function CreateUserForm() {
 
     const form = e.currentTarget
     const formData = new FormData(form)
-    formData.set("division", division)
+    formData.set("divisions", JSON.stringify(divisions))
 
     startTransition(async () => {
       const result = await createUser(formData)
@@ -40,7 +34,7 @@ export function CreateUserForm() {
       }
       setSuccess(true)
       form.reset()
-      setDivision("marketing")
+      setDivisions(["marketing"])
       router.refresh()
     })
   }
@@ -73,22 +67,9 @@ export function CreateUserForm() {
             placeholder="Min. 6 karakter"
           />
         </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="division">Division</Label>
-          <Select value={division} onValueChange={(v) => setDivision(v as Division)}>
-            <SelectTrigger id="division">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.entries(DIVISION_LABELS) as [Division, string][]).map(
-                ([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                )
-              )}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-col gap-2 sm:col-span-2">
+          <Label>Divisi</Label>
+          <DivisionMultiSelect value={divisions} onChange={setDivisions} />
         </div>
       </div>
 

@@ -31,7 +31,7 @@ type StepDefRow = {
 }
 
 export default async function FlowSettingsPage() {
-  const { profile, user, supabase } = await requireAdmin()
+  const { profile, user, userDivisions, supabase } = await requireAdmin()
 
   const fullQuery = await supabase
     .from("step_definitions")
@@ -120,6 +120,7 @@ export default async function FlowSettingsPage() {
     <AppShell
       userName={profile?.name ?? user.email ?? "User"}
       division={profile?.division}
+      userDivisions={userDivisions}
     >
       <main
         className={cn(

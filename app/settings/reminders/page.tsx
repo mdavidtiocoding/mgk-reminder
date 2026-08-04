@@ -16,7 +16,7 @@ import { requireAdmin } from "@/lib/auth/require-admin"
 import { getStep } from "@/lib/steps"
 
 export default async function ReminderSettingsPage() {
-  const { profile, user, supabase } = await requireAdmin()
+  const { profile, user, userDivisions, supabase } = await requireAdmin()
 
   const [{ data: reminderConfigsRaw }, { data: stepDefRows }] = await Promise.all([
     supabase
@@ -42,6 +42,7 @@ export default async function ReminderSettingsPage() {
     <AppShell
       userName={profile?.name ?? user.email ?? "User"}
       division={profile?.division}
+      userDivisions={userDivisions}
     >
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6">
         <Button variant="ghost" size="sm" className="w-fit" asChild>

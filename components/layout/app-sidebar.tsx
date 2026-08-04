@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils"
 type AppSidebarProps = {
   userName: string
   division?: string | null
+  userDivisions?: Division[]
   outstandingCount: number
 }
 
@@ -85,8 +86,7 @@ function NavLinks({
 
 function SidebarPanel({
   userName,
-  divisionKey,
-  divisionStyle,
+  divisionKeys,
   variantBadge,
   pathname,
   outstandingCount,
@@ -94,8 +94,7 @@ function SidebarPanel({
   mobile = false,
 }: {
   userName: string
-  divisionKey: Division | undefined
-  divisionStyle: string
+  divisionKeys: Division[]
   variantBadge: string | null
   pathname: string
   outstandingCount: number
@@ -151,15 +150,21 @@ function SidebarPanel({
         )}
       >
         <div className="flex flex-col gap-2">
-          {divisionKey && (
-            <span
-              className={cn(
-                "w-fit rounded-full px-2 py-0.5 text-[11px] font-medium",
-                divisionStyle
-              )}
-            >
-              {getDivisionLabel(divisionKey)}
-            </span>
+          {divisionKeys.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {divisionKeys.map((divisionKey) => (
+                <span
+                  key={divisionKey}
+                  className={cn(
+                    "w-fit rounded-full px-2 py-0.5 text-[11px] font-medium",
+                    DIVISION_BADGE_STYLES[divisionKey]?.badge ??
+                      "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {getDivisionLabel(divisionKey)}
+                </span>
+              ))}
+            </div>
           )}
           <p className="truncate text-sm font-medium">{userName}</p>
           <form action="/auth/signout" method="post">
@@ -181,15 +186,17 @@ function SidebarPanel({
 export function AppSidebar({
   userName,
   division,
+  userDivisions = [],
   outstandingCount,
 }: AppSidebarProps) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const divisionKey = division as Division | undefined
-  const divisionStyle =
-    divisionKey && DIVISION_BADGE_STYLES[divisionKey]
-      ? DIVISION_BADGE_STYLES[divisionKey].badge
-      : "bg-muted text-muted-foreground"
+  const divisionKeys =
+    userDivisions.length > 0
+      ? userDivisions
+      : division
+        ? [division as Division]
+        : []
   const variantBadge = getAppVariantBadgeLabel()
 
   useEffect(() => {
@@ -198,8 +205,7 @@ export function AppSidebar({
 
   const panelProps = {
     userName,
-    divisionKey,
-    divisionStyle,
+    divisionKeys,
     variantBadge,
     pathname,
     outstandingCount,

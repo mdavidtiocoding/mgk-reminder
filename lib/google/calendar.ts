@@ -80,7 +80,8 @@ async function getCalendarUsersForDivision(
   const { data } = await service
     .from("profiles")
     .select("id, google_access_token, google_refresh_token")
-    .eq("division", division)
+    .eq("status", "active")
+    .or(`division.eq.${division},divisions.cs.{${division}}`)
     .eq("google_calendar_connected", true)
     .eq("status", "active")
     .not("google_access_token", "is", null)

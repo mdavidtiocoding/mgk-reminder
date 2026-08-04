@@ -25,7 +25,8 @@ async function getDivisionRecipients(
   const { data: divisionUsers } = await supabase
     .from("profiles")
     .select("id, name, email, notif_email, notif_push")
-    .eq("division", division)
+    .eq("status", "active")
+    .or(`division.eq.${division},divisions.cs.{${division}}`)
 
   if (!includeAdmins) {
     return divisionUsers ?? []
@@ -34,7 +35,8 @@ async function getDivisionRecipients(
   const { data: admins } = await supabase
     .from("profiles")
     .select("id, name, email, notif_email, notif_push")
-    .eq("division", "admin")
+    .eq("status", "active")
+    .or("division.eq.admin,divisions.cs.{admin}")
 
   const merged = [...(divisionUsers ?? []), ...(admins ?? [])]
   const seen = new Set<string>()
@@ -229,7 +231,8 @@ export async function notifyAdminsHogger(
   const { data: admins } = await supabase
     .from("profiles")
     .select("id, email, notif_email, notif_push")
-    .eq("division", "admin")
+    .eq("status", "active")
+    .or("division.eq.admin,divisions.cs.{admin}")
 
   const step = getStep(params.stepCode)
   if (!step || !admins?.length) return

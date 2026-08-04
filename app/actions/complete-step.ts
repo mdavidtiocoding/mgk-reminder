@@ -24,6 +24,10 @@ import {
 } from "@/lib/steps/completion-mode"
 import type { DateField } from "@/lib/steps"
 import { buildRescheduleChannel } from "@/lib/projects/reschedule-log"
+import {
+  resolveUserDivisions,
+  userHasDivision,
+} from "@/lib/auth/user-divisions"
 import { createServiceClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 
@@ -58,9 +62,11 @@ export async function completeStep(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("division")
+    .select("division, divisions")
     .eq("id", user.id)
     .single()
+
+  const userDivisions = resolveUserDivisions(profile)
 
   const runtimeSteps = await loadRuntimeSteps(supabase)
   const step = runtimeSteps.find((s) => s.code === stepCode)
@@ -75,7 +81,7 @@ export async function completeStep(
     }
   }
 
-  if (profile?.division !== "admin" && profile?.division !== step.division) {
+  if (!userHasDivision(userDivisions, step.division)) {
     return { success: false, error: "Anda tidak berwenang menyelesaikan step ini." }
   }
 

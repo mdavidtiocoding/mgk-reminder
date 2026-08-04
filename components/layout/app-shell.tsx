@@ -7,14 +7,16 @@ import { createClient } from "@/lib/supabase/server"
 
 type AppShellProps = {
   userName: string
+  /** Legacy primary division for header fallback. */
   division?: string | null
+  userDivisions?: Division[]
   /** Pass when the page already fetched tasks to avoid a duplicate query. */
   outstandingCount?: number
   children: React.ReactNode
 }
 
 async function fetchOutstandingCount(
-  division: string | null | undefined
+  userDivisions: Division[] = []
 ): Promise<number> {
   const supabase = await createClient()
   const {
@@ -24,7 +26,7 @@ async function fetchOutstandingCount(
   if (!user) return 0
 
   try {
-    const tasks = await getMyTasks(supabase, division as Division | undefined)
+    const tasks = await getMyTasks(supabase, userDivisions)
     return tasks.length
   } catch {
     return 0
@@ -34,12 +36,13 @@ async function fetchOutstandingCount(
 export async function AppShell({
   userName,
   division,
+  userDivisions = [],
   outstandingCount: outstandingCountProp,
   children,
 }: AppShellProps) {
   const theme = await getUiTheme()
   const outstandingCount =
-    outstandingCountProp ?? (await fetchOutstandingCount(division))
+    outstandingCountProp ?? (await fetchOutstandingCount(userDivisions))
 
   if (theme === "premium") {
     return (
@@ -47,6 +50,7 @@ export async function AppShell({
         <AppSidebar
           userName={userName}
           division={division}
+          userDivisions={userDivisions}
           outstandingCount={outstandingCount}
         />
         <div className="flex min-w-0 flex-1 flex-col">{children}</div>
@@ -59,6 +63,7 @@ export async function AppShell({
       <AppHeader
         userName={userName}
         division={division}
+        userDivisions={userDivisions}
         outstandingCount={outstandingCount}
       />
       {children}

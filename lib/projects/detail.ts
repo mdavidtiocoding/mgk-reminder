@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { userHasDivision, isUserAdmin } from "@/lib/auth/user-divisions"
 import { computeProjectSteps, type CompletionInfo } from "@/lib/projects/active-steps"
 import { buildStepFlowWarnings } from "@/lib/projects/flow-warnings"
 import {
@@ -121,17 +122,16 @@ function normalizeRelation<T>(value: T | T[] | null): T | null {
 }
 
 function canUserCompleteStep(
-  userDivision: Division | null | undefined,
+  userDivisions: Division[],
   stepDivision: Division
 ): boolean {
-  if (!userDivision) return false
-  return userDivision === "admin" || userDivision === stepDivision
+  return userHasDivision(userDivisions, stepDivision)
 }
 
 export async function getProjectDetail(
   supabase: SupabaseClient,
   projectId: string,
-  userDivision?: Division | null
+  userDivisions: Division[] = []
 ): Promise<ProjectDetail | null> {
   const [runtimeSteps, substepCompletions, { data, error }] = await Promise.all([
     loadRuntimeSteps(supabase),
@@ -220,7 +220,7 @@ export async function getProjectDetail(
     const completedSubstepKeys = getCompletedSubstepKeys(step.code, substepCompletions)
     const pendingReminders = getPendingReminderSubsteps(step.substeps, completedSubstepKeys)
     const userCanCompleteStep =
-      project.status === "active" && canUserCompleteStep(userDivision, step.division)
+      project.status === "active" && canUserCompleteStep(userDivisions, step.division)
 
     return {
       code: step.code,
@@ -252,7 +252,7 @@ export async function getProjectDetail(
       canEditSubsteps:
         userCanCompleteStep &&
         (computed.status === "active" || pendingReminders.length > 0),
-      canUndo: computed.status === "done" && userDivision === "admin",
+      canUndo: computed.status === "done" && isUserAdmin(userDivisions),
       hasPendingReminderSubsteps: pendingReminders.length > 0,
       flowWarnings: [],
     }
