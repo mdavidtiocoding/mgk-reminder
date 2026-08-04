@@ -19,20 +19,27 @@ function isDivision(value: string): value is Division {
   return VALID_DIVISIONS.has(value)
 }
 
-/** Resolve effective divisions from profile (array takes precedence over legacy single column). */
+/**
+ * Resolve effective divisions from profile.
+ * Merges legacy `division` with `divisions[]` so admin is not lost if one
+ * column is stale after migration.
+ */
 export function resolveUserDivisions(
   profile: UserDivisionsSource | null | undefined
 ): Division[] {
   if (!profile) return []
 
-  const fromArray = (profile.divisions ?? []).filter(isDivision)
-  if (fromArray.length > 0) return fromArray
+  const merged = new Set<Division>()
 
-  if (profile.division && isDivision(profile.division)) {
-    return [profile.division]
+  for (const value of profile.divisions ?? []) {
+    if (isDivision(value)) merged.add(value)
   }
 
-  return []
+  if (profile.division && isDivision(profile.division)) {
+    merged.add(profile.division)
+  }
+
+  return [...merged]
 }
 
 export function isUserAdmin(userDivisions: Division[]): boolean {
@@ -47,11 +54,14 @@ export function userHasDivision(
   return userDivisions.includes(target)
 }
 
-/** Primary division for display (legacy column sync + sidebar badge). */
+/**
+ * Primary division for the legacy `division` column.
+ * Prefer admin when present so older checks (`division === "admin"`) keep working.
+ */
 export function getPrimaryDivision(userDivisions: Division[]): Division | null {
   if (userDivisions.length === 0) return null
-  const operational = userDivisions.filter((d) => d !== "admin")
-  return operational[0] ?? userDivisions[0] ?? null
+  if (userDivisions.includes("admin")) return "admin"
+  return userDivisions[0] ?? null
 }
 
 /** Keep `division` column in sync when saving `divisions` array. */

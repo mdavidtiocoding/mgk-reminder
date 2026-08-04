@@ -21,16 +21,22 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
+  -- Union of divisions[] + legacy division so admin is not lost if one side is stale
   SELECT COALESCE(
-    NULLIF(
-      (SELECT divisions FROM public.profiles WHERE id = auth.uid()),
-      '{}'::TEXT[]
+    (
+      SELECT array_agg(DISTINCT d)
+      FROM (
+        SELECT unnest(COALESCE(p.divisions, '{}'::TEXT[])) AS d
+        FROM public.profiles p
+        WHERE p.id = auth.uid()
+        UNION
+        SELECT p.division
+        FROM public.profiles p
+        WHERE p.id = auth.uid() AND p.division IS NOT NULL
+      ) s
+      WHERE d IS NOT NULL AND d <> ''
     ),
-    CASE
-      WHEN (SELECT division FROM public.profiles WHERE id = auth.uid()) IS NOT NULL
-      THEN ARRAY[(SELECT division FROM public.profiles WHERE id = auth.uid())]
-      ELSE '{}'::TEXT[]
-    END
+    '{}'::TEXT[]
   );
 $$;
 
