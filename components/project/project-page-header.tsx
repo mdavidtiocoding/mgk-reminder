@@ -78,14 +78,9 @@ export function ProjectPageHeader({
   }
 
   return (
-    <div className="-mx-6 -mt-6 border-b border-white/10 bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 text-white">
+    <div className="-mx-6 -mt-6 border-b border-slate-200/80 bg-gradient-to-b from-slate-50 via-white to-white">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-6 py-6">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-fit text-white/80 hover:bg-white/10 hover:text-white"
-          asChild
-        >
+        <Button variant="ghost" size="sm" className="w-fit text-muted-foreground" asChild>
           <Link href="/">
             <ArrowLeft className="size-4" />
             Kembali
@@ -95,21 +90,23 @@ export function ProjectPageHeader({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-2xl font-bold">{projectName}</h2>
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                {projectName}
+              </h2>
               <Badge
                 className={cn(
                   status === "on_hold" &&
-                    "border-white/40 bg-white/10 text-white",
+                    "border-amber-200 bg-amber-50 text-amber-800",
                   status === "completed" &&
-                    "border-white/30 bg-white/15 text-white",
+                    "border-slate-200 bg-slate-100 text-slate-700",
                   status === "active" &&
-                    "border-emerald-400/50 bg-emerald-500/20 text-emerald-50"
+                    "border-emerald-200 bg-emerald-50 text-emerald-700"
                 )}
               >
                 {STATUS_LABELS[status]}
               </Badge>
             </div>
-            <p className="text-sm text-white/70">
+            <p className="text-sm text-muted-foreground">
               Customer: {customerName ?? "—"} · Mulai {formatDate(createdAt)}
             </p>
           </div>
@@ -120,7 +117,6 @@ export function ProjectPageHeader({
             status={status}
             customers={customers}
             isAdmin={isAdmin}
-            tone="dark"
           />
         </div>
       </div>
