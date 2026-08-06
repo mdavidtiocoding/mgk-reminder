@@ -170,6 +170,38 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
 
             <Card>
               <CardHeader>
+                <CardTitle>Demo Task Preview</CardTitle>
+                <CardDescription>
+                  Lihat kartu step per divisi (seperti My Tasks), lalu edit
+                  checklist / sub-step / trigger langsung — nyambung ke Flow
+                  Config.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <Button size="sm" asChild>
+                  <Link href="/settings/demo">Buka Demo Preview</Link>
+                </Button>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ["ar", "AR"],
+                      ["shipping", "Shipping"],
+                      ["project", "Project"],
+                      ["finance", "Finance"],
+                      ["logistik", "Logistik"],
+                      ["marketing", "Marketing"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <Button key={value} size="sm" variant="outline" asChild>
+                      <Link href={`/settings/demo/${value}`}>Demo {label}</Link>
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <GitBranch className="size-4" />
                   Konfigurasi Flow Step

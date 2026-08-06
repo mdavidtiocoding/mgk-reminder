@@ -85,7 +85,7 @@ AS $$
       LIMIT 1
     ),
     (SELECT division FROM public.profiles WHERE id = auth.uid()),
-    (SELECT public.user_divisions()[1])
+    (SELECT (public.user_divisions())[1])
   );
 $$;
 
