@@ -30,28 +30,35 @@ export function DashboardStatsBar({
 
   const items = [
     { label: "Project", value: total },
-    { label: "My Tasks", value: myTasks },
+    { label: "Tasks", value: myTasks },
     { label: "Hogger", value: hogger, warn: hogger > 0 },
   ]
 
   return (
-    <div className="flex items-stretch divide-x overflow-hidden rounded-lg border bg-card">
-      {items.map((item) => (
+    <div
+      className="grid w-full grid-cols-3 overflow-hidden rounded-md border bg-card"
+      role="group"
+      aria-label="Ringkasan dashboard"
+    >
+      {items.map((item, index) => (
         <div
           key={item.label}
-          className="flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-2 py-2.5 sm:py-3"
+          className={cn(
+            "flex min-h-9 min-w-0 items-center justify-center gap-1.5 px-1.5 py-1.5",
+            index > 0 && "border-l"
+          )}
         >
-          <p
+          <span
             className={cn(
-              "text-lg font-semibold tabular-nums leading-none sm:text-xl",
+              "text-sm font-semibold tabular-nums leading-none",
               item.warn && "text-destructive"
             )}
           >
             {item.value}
-          </p>
-          <p className="truncate text-[11px] text-muted-foreground sm:text-xs">
+          </span>
+          <span className="truncate text-[10px] leading-none text-muted-foreground">
             {item.label}
-          </p>
+          </span>
         </div>
       ))}
     </div>

@@ -61,8 +61,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       <main
         className={
           theme === "premium"
-            ? "mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 p-6"
-            : "flex flex-1 flex-col gap-6 p-6"
+            ? "mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6"
+            : "flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6"
         }
       >
         <PushOnboardingBanner />
