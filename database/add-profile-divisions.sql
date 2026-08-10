@@ -215,61 +215,69 @@ CREATE POLICY "followup_schedule_delete"
     )
   );
 
--- substep_completions (from add-substeps.sql)
-DROP POLICY IF EXISTS "substep_completions_insert" ON public.substep_completions;
-CREATE POLICY "substep_completions_insert"
-  ON public.substep_completions FOR INSERT
-  TO authenticated
-  WITH CHECK (
-    public.is_active_user()
-    AND (
-      public.is_admin()
-      OR (
-        completed_by = auth.uid()
-        AND step_code = ANY(public.project_active_step_codes(project_id))
-        AND public.user_has_division(
+-- step_substep_completions (from add-substeps.sql) — only if table exists
+DO $$
+BEGIN
+  IF to_regclass('public.step_substep_completions') IS NULL THEN
+    RAISE NOTICE 'step_substep_completions belum ada — skip policy multi-divisi untuk sub-step';
+    RETURN;
+  END IF;
+
+  DROP POLICY IF EXISTS "step_substep_completions_insert" ON public.step_substep_completions;
+  CREATE POLICY "step_substep_completions_insert"
+    ON public.step_substep_completions FOR INSERT
+    TO authenticated
+    WITH CHECK (
+      public.is_active_user()
+      AND (
+        public.is_admin()
+        OR (
+          completed_by = auth.uid()
+          AND step_code = ANY(public.project_active_step_codes(project_id))
+          AND public.user_has_division(
+            (SELECT division FROM public.step_definitions WHERE code = step_code)
+          )
+        )
+      )
+    );
+
+  DROP POLICY IF EXISTS "step_substep_completions_update" ON public.step_substep_completions;
+  CREATE POLICY "step_substep_completions_update"
+    ON public.step_substep_completions FOR UPDATE
+    TO authenticated
+    USING (
+      public.is_active_user()
+      AND (
+        public.is_admin()
+        OR public.user_has_division(
           (SELECT division FROM public.step_definitions WHERE code = step_code)
         )
       )
     )
-  );
+    WITH CHECK (
+      public.is_active_user()
+      AND (
+        public.is_admin()
+        OR public.user_has_division(
+          (SELECT division FROM public.step_definitions WHERE code = step_code)
+        )
+      )
+    );
 
-DROP POLICY IF EXISTS "substep_completions_update" ON public.substep_completions;
-CREATE POLICY "substep_completions_update"
-  ON public.substep_completions FOR UPDATE
-  TO authenticated
-  USING (
-    public.is_active_user()
-    AND (
-      public.is_admin()
-      OR public.user_has_division(
-        (SELECT division FROM public.step_definitions WHERE code = step_code)
+  DROP POLICY IF EXISTS "step_substep_completions_delete" ON public.step_substep_completions;
+  CREATE POLICY "step_substep_completions_delete"
+    ON public.step_substep_completions FOR DELETE
+    TO authenticated
+    USING (
+      public.is_active_user()
+      AND (
+        public.is_admin()
+        OR public.user_has_division(
+          (SELECT division FROM public.step_definitions WHERE code = step_code)
+        )
       )
-    )
-  )
-  WITH CHECK (
-    public.is_active_user()
-    AND (
-      public.is_admin()
-      OR public.user_has_division(
-        (SELECT division FROM public.step_definitions WHERE code = step_code)
-      )
-    )
-  );
-
-DROP POLICY IF EXISTS "substep_completions_delete" ON public.substep_completions;
-CREATE POLICY "substep_completions_delete"
-  ON public.substep_completions FOR DELETE
-  TO authenticated
-  USING (
-    public.is_active_user()
-    AND (
-      public.is_admin()
-      OR public.user_has_division(
-        (SELECT division FROM public.step_definitions WHERE code = step_code)
-      )
-    )
-  );
+    );
+END $$;
 
 -- profiles_update_own: users cannot change divisions themselves
 DROP POLICY IF EXISTS "profiles_update_own" ON public.profiles;

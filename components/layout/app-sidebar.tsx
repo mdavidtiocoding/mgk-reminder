@@ -102,10 +102,10 @@ function SidebarPanel({
   mobile?: boolean
 }) {
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-col">
       <div
         className={cn(
-          "flex items-center gap-2.5 px-3 py-4",
+          "flex shrink-0 items-center gap-2.5 px-3 py-4",
           mobile && "pt-[max(1rem,env(safe-area-inset-top))]"
         )}
       >
@@ -123,7 +123,7 @@ function SidebarPanel({
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 px-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2">
         <NavLinks
           pathname={pathname}
           outstandingCount={outstandingCount}
@@ -145,7 +145,7 @@ function SidebarPanel({
 
       <div
         className={cn(
-          "mt-auto border-t px-3 py-4",
+          "shrink-0 border-t bg-sidebar px-3 py-4",
           mobile && "pb-[max(1rem,env(safe-area-inset-bottom))]"
         )}
       >
@@ -179,7 +179,7 @@ function SidebarPanel({
           </form>
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -259,7 +259,7 @@ export function AppSidebar({
           className="w-[min(280px,85vw)] max-w-[85vw] gap-0 border-r bg-sidebar p-0 shadow-xl"
           aria-describedby={undefined}
         >
-          <div className="flex h-full flex-col">
+          <div className="flex h-full min-h-0 flex-col">
             <SidebarPanel
               {...panelProps}
               mobile
@@ -269,10 +269,8 @@ export function AppSidebar({
         </SheetContent>
       </Sheet>
 
-      <aside className="hidden min-h-full w-[220px] shrink-0 flex-col border-r bg-sidebar md:flex">
-        <div className="flex min-h-full flex-1 flex-col">
-          <SidebarPanel {...panelProps} />
-        </div>
+      <aside className="sticky top-0 hidden h-svh w-[220px] shrink-0 flex-col border-r bg-sidebar md:flex">
+        <SidebarPanel {...panelProps} />
       </aside>
     </>
   )
