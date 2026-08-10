@@ -5,9 +5,14 @@ export function formatAuthError(message: string): string {
   if (
     lower.includes("rate limit") ||
     lower.includes("once every") ||
-    lower.includes("too many requests")
+    lower.includes("too many requests") ||
+    lower.includes("email rate limit")
   ) {
-    return "Terlalu banyak permintaan email verifikasi dari sistem. Coba lagi dalam ±1 jam, atau hubungi admin agar akun dibuatkan langsung."
+    return "Terlalu banyak permintaan email. Coba lagi nanti (±1 jam), atau hubungi admin."
+  }
+
+  if (lower.includes("same password") || lower.includes("should be different")) {
+    return "Password baru harus berbeda dari password lama."
   }
 
   if (lower.includes("invalid email")) {

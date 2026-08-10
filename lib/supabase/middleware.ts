@@ -38,6 +38,8 @@ export async function updateSession(request: NextRequest) {
   const isAuthRoute =
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password") ||
     pathname.startsWith("/auth")
   const isPublicApi = pathname.startsWith("/api/cron")
   const isPendingRoute = pathname.startsWith("/pending-approval")
@@ -56,7 +58,9 @@ export async function updateSession(request: NextRequest) {
       .single()
 
     const isActive = profile?.status === "active"
+    const isResetPassword = pathname.startsWith("/reset-password")
 
+    // Recovery / reset-password: allow even if pending, so user can set password.
     if (!isActive && !isPendingRoute && !isAuthRoute) {
       const redirectUrl = request.nextUrl.clone()
       redirectUrl.pathname = "/pending-approval"
@@ -71,7 +75,10 @@ export async function updateSession(request: NextRequest) {
 
     if (
       isActive &&
-      (pathname === "/login" || pathname === "/register")
+      !isResetPassword &&
+      (pathname === "/login" ||
+        pathname === "/register" ||
+        pathname === "/forgot-password")
     ) {
       const redirectUrl = request.nextUrl.clone()
       redirectUrl.pathname = "/"

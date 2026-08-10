@@ -2,10 +2,17 @@ import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
 
+function safeNextPath(next: string | null): string {
+  if (!next || !next.startsWith("/") || next.startsWith("//")) {
+    return "/"
+  }
+  return next
+}
+
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
-  const next = searchParams.get("next") ?? "/"
+  const next = safeNextPath(searchParams.get("next"))
 
   if (code) {
     const supabase = await createClient()
@@ -14,6 +21,10 @@ export async function GET(request: Request) {
     if (!error) {
       return NextResponse.redirect(`${origin}${next}`)
     }
+  }
+
+  if (next.startsWith("/reset-password")) {
+    return NextResponse.redirect(`${origin}/forgot-password?error=link`)
   }
 
   return NextResponse.redirect(`${origin}/login?error=auth`)
