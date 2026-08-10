@@ -7,6 +7,7 @@ import {
   ROLE_PERMISSIONS_CONFIG_KEY,
   type RolePermissionsMatrix,
 } from "@/lib/auth/permissions"
+import { resolveActorName, writeAuditLog } from "@/lib/audit/log"
 import { assertPermission } from "@/lib/auth/require-permission"
 
 export type SaveRolePermissionsResult =
@@ -40,6 +41,18 @@ export async function saveRolePermissions(
         : error.message,
     }
   }
+
+  const actorName = await resolveActorName(
+    auth.ctx.user.id,
+    auth.ctx.profile?.name ?? auth.ctx.user.email
+  )
+  await writeAuditLog({
+    actorId: auth.ctx.user.id,
+    actorName,
+    action: "permissions.update",
+    summary: "Update matriks akses role",
+    entityType: "permissions",
+  })
 
   revalidatePath("/settings")
   revalidatePath("/settings/permissions")

@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { GitBranch, Shield } from "lucide-react"
+import { GitBranch, ScrollText, Shield } from "lucide-react"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
@@ -53,7 +53,8 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
     permissions.settings_reminders ||
     permissions.settings_demo ||
     permissions.settings_flow ||
-    permissions.settings_permissions
+    permissions.settings_permissions ||
+    permissions.settings_audit
 
   return (
     <AppShell
@@ -136,6 +137,26 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                 <CardContent>
                   <Button size="sm" asChild>
                     <Link href="/settings/permissions">Kelola akses role</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {permissions.settings_audit && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ScrollText className="size-4" />
+                    Audit log
+                  </CardTitle>
+                  <CardDescription>
+                    Siapa yang buat / edit / undo / hapus project dan aksi
+                    penting lain.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button size="sm" asChild>
+                    <Link href="/settings/audit">Lihat audit log</Link>
                   </Button>
                 </CardContent>
               </Card>

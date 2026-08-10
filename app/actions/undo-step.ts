@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 
 import { assertPermission } from "@/lib/auth/require-permission"
+import { resolveActorName, writeAuditLog } from "@/lib/audit/log"
 import {
   buildDoneCodes,
   computeProjectSteps,
@@ -34,6 +35,7 @@ export async function undoStep(
       .select(
         `
         id,
+        name,
         status,
         created_at,
         ex_work_date,
@@ -120,6 +122,20 @@ export async function undoStep(
         .eq("id", projectId)
     }
   }
+
+  const actorName = await resolveActorName(
+    auth.ctx.user.id,
+    auth.ctx.profile?.name ?? auth.ctx.user.email
+  )
+  await writeAuditLog({
+    actorId: auth.ctx.user.id,
+    actorName,
+    action: "step.undo",
+    summary: `Undo ${stepCode} · ${project.name}`,
+    entityType: "step",
+    entityId: stepCode,
+    projectId,
+  })
 
   revalidatePath(`/projects/${projectId}`)
   revalidatePath("/")

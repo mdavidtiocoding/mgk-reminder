@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
+import { resolveActorName, writeAuditLog } from "@/lib/audit/log"
 import { assertPermission } from "@/lib/auth/require-permission"
 import type { ProjectStatus } from "@/lib/steps"
 
@@ -18,7 +19,7 @@ export async function updateProject(input: {
 }): Promise<ProjectActionResult> {
   const auth = await assertPermission("edit_project")
   if (!auth.ok) return { success: false, error: auth.error }
-  const { supabase } = auth.ctx
+  const { supabase, user, profile } = auth.ctx
 
   const name = input.name.trim()
   if (!name) return { success: false, error: "Nama project wajib diisi." }
@@ -48,6 +49,17 @@ export async function updateProject(input: {
 
   if (error) return { success: false, error: error.message }
 
+  const actorName = await resolveActorName(user.id, profile?.name ?? user.email)
+  await writeAuditLog({
+    actorId: user.id,
+    actorName,
+    action: "project.update",
+    summary: `Edit project → “${name}”`,
+    entityType: "project",
+    entityId: input.projectId,
+    projectId: input.projectId,
+  })
+
   revalidatePath("/")
   revalidatePath(`/projects/${input.projectId}`)
   revalidatePath("/tasks")
@@ -65,12 +77,33 @@ export async function updateProjectStatus(
     return { success: false, error: "Status tidak valid." }
   }
 
+  const { data: before } = await auth.ctx.supabase
+    .from("projects")
+    .select("name, status")
+    .eq("id", projectId)
+    .maybeSingle()
+
   const { error } = await auth.ctx.supabase
     .from("projects")
     .update({ status })
     .eq("id", projectId)
 
   if (error) return { success: false, error: error.message }
+
+  const actorName = await resolveActorName(
+    auth.ctx.user.id,
+    auth.ctx.profile?.name ?? auth.ctx.user.email
+  )
+  await writeAuditLog({
+    actorId: auth.ctx.user.id,
+    actorName,
+    action: "project.status",
+    summary: `Status “${before?.name ?? projectId}”: ${before?.status ?? "?"} → ${status}`,
+    entityType: "project",
+    entityId: projectId,
+    projectId,
+    meta: { from: before?.status, to: status },
+  })
 
   revalidatePath("/")
   revalidatePath(`/projects/${projectId}`)
@@ -81,6 +114,12 @@ export async function updateProjectStatus(
 export async function deleteProject(projectId: string): Promise<ProjectActionResult> {
   const auth = await assertPermission("delete_project")
   if (!auth.ok) return { success: false, error: auth.error }
+
+  const { data: before } = await auth.ctx.supabase
+    .from("projects")
+    .select("name")
+    .eq("id", projectId)
+    .maybeSingle()
 
   // .select() is required: without a DELETE RLS policy Supabase returns
   // success with 0 rows and no error — project would appear "deleted" in UI
@@ -99,6 +138,20 @@ export async function deleteProject(projectId: string): Promise<ProjectActionRes
         "Gagal hapus (0 baris). Jalankan database/add-app-config.sql di Supabase SQL Editor agar policy projects_delete_admin aktif.",
     }
   }
+
+  const actorName = await resolveActorName(
+    auth.ctx.user.id,
+    auth.ctx.profile?.name ?? auth.ctx.user.email
+  )
+  await writeAuditLog({
+    actorId: auth.ctx.user.id,
+    actorName,
+    action: "project.delete",
+    summary: `Hapus project “${before?.name ?? projectId}”`,
+    entityType: "project",
+    entityId: projectId,
+    meta: { name: before?.name },
+  })
 
   revalidatePath("/")
   revalidatePath("/tasks")

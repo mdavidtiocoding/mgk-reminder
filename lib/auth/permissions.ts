@@ -16,6 +16,7 @@ export const PERMISSION_KEYS = [
   "settings_demo",
   "settings_app_config",
   "settings_permissions",
+  "settings_audit",
 ] as const
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number]
@@ -33,6 +34,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   settings_demo: "Settings → Demo preview",
   settings_app_config: "Settings → Threshold HOGGER",
   settings_permissions: "Settings → Akses role (matriks ini)",
+  settings_audit: "Settings → Audit log",
 }
 
 export const PERMISSION_GROUPS: {
@@ -59,6 +61,7 @@ export const PERMISSION_GROUPS: {
       "settings_demo",
       "settings_app_config",
       "settings_permissions",
+      "settings_audit",
     ],
   },
 ]

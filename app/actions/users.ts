@@ -8,6 +8,7 @@ import {
   normalizeDivisionsInput,
   resolveUserDivisions,
 } from "@/lib/auth/user-divisions"
+import { resolveActorName, writeAuditLog } from "@/lib/audit/log"
 import { assertPermission } from "@/lib/auth/require-permission"
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/admin"
@@ -51,7 +52,7 @@ async function assertAdmin() {
   if (!auth.ok) {
     return { ok: false as const, error: auth.error }
   }
-  return { ok: true as const }
+  return { ok: true as const, ctx: auth.ctx }
 }
 
 export async function createUser(
@@ -112,6 +113,20 @@ export async function createUser(
     })
   }
 
+  const actorName = await resolveActorName(
+    auth.ctx.user.id,
+    auth.ctx.profile?.name ?? auth.ctx.user.email
+  )
+  await writeAuditLog({
+    actorId: auth.ctx.user.id,
+    actorName,
+    action: "user.create",
+    summary: `Buat user ${name} (${email}) · ${divisions.join(", ")}`,
+    entityType: "user",
+    entityId: data.user?.id,
+    meta: { email, divisions },
+  })
+
   revalidatePath("/settings/users")
   return { success: true }
 }
@@ -149,6 +164,20 @@ export async function updateUserDivisions(
   if (error) {
     return { success: false, error: error.message }
   }
+
+  const actorName = await resolveActorName(
+    auth.ctx.user.id,
+    auth.ctx.profile?.name ?? auth.ctx.user.email
+  )
+  await writeAuditLog({
+    actorId: auth.ctx.user.id,
+    actorName,
+    action: "user.update_divisions",
+    summary: `Ubah divisi user → ${normalized.join(", ")}`,
+    entityType: "user",
+    entityId: userId,
+    meta: { divisions: normalized },
+  })
 
   revalidatePath("/settings/users")
   return { success: true }
@@ -214,6 +243,20 @@ export async function updateUserStatus(
     return { success: false, error: error.message }
   }
 
+  const actorName = await resolveActorName(
+    auth.ctx.user.id,
+    auth.ctx.profile?.name ?? auth.ctx.user.email
+  )
+  await writeAuditLog({
+    actorId: auth.ctx.user.id,
+    actorName,
+    action: "user.update_status",
+    summary: `Status user → ${status}`,
+    entityType: "user",
+    entityId: userId,
+    meta: { status },
+  })
+
   revalidatePath("/settings/users")
   return { success: true }
 }
@@ -222,12 +265,7 @@ export async function deleteUser(userId: string): Promise<UserActionResult> {
   const auth = await assertAdmin()
   if (!auth.ok) return { success: false, error: auth.error }
 
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (user?.id === userId) {
+  if (auth.ctx.user.id === userId) {
     return { success: false, error: "Tidak bisa menghapus akun sendiri." }
   }
 
@@ -239,11 +277,31 @@ export async function deleteUser(userId: string): Promise<UserActionResult> {
     }
   }
 
+  const { data: target } = await service
+    .from("profiles")
+    .select("name, email")
+    .eq("id", userId)
+    .maybeSingle()
+
   const { error } = await service.auth.admin.deleteUser(userId)
 
   if (error) {
     return { success: false, error: error.message }
   }
+
+  const actorName = await resolveActorName(
+    auth.ctx.user.id,
+    auth.ctx.profile?.name ?? auth.ctx.user.email
+  )
+  await writeAuditLog({
+    actorId: auth.ctx.user.id,
+    actorName,
+    action: "user.delete",
+    summary: `Hapus user ${target?.name ?? target?.email ?? userId}`,
+    entityType: "user",
+    entityId: userId,
+    meta: { email: target?.email, name: target?.name },
+  })
 
   revalidatePath("/settings/users")
   return { success: true }

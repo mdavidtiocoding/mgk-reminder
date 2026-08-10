@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 
 import { assertPermission } from "@/lib/auth/require-permission"
+import { resolveActorName, writeAuditLog } from "@/lib/audit/log"
 import { createClient } from "@/lib/supabase/server"
 
 export type AdhocActionResult =
@@ -17,7 +18,7 @@ async function assertCanManageAdhoc(projectId: string) {
 
   const { data: project } = await auth.ctx.supabase
     .from("projects")
-    .select("id")
+    .select("id, name")
     .eq("id", projectId)
     .single()
 
@@ -28,6 +29,8 @@ async function assertCanManageAdhoc(projectId: string) {
   return {
     ok: true as const,
     userId: auth.ctx.user.id,
+    actorName: auth.ctx.profile?.name ?? auth.ctx.user.email ?? "User",
+    projectName: project.name as string,
     supabase: auth.ctx.supabase,
   }
 }
@@ -52,6 +55,17 @@ export async function createAdhocCase(
 
   if (error) return { success: false, error: error.message }
 
+  const actorName = await resolveActorName(auth.userId, auth.actorName)
+  await writeAuditLog({
+    actorId: auth.userId,
+    actorName,
+    action: "adhoc.create",
+    summary: `Ad-hoc baru · ${auth.projectName}`,
+    entityType: "adhoc",
+    projectId,
+    meta: { description: trimmed.slice(0, 120) },
+  })
+
   revalidatePath(`/projects/${projectId}`)
   return { success: true }
 }
@@ -75,6 +89,17 @@ export async function resolveAdhocCase(
     .eq("status", "open")
 
   if (error) return { success: false, error: error.message }
+
+  const actorName = await resolveActorName(auth.userId, auth.actorName)
+  await writeAuditLog({
+    actorId: auth.userId,
+    actorName,
+    action: "adhoc.resolve",
+    summary: `Resolve ad-hoc · ${auth.projectName}`,
+    entityType: "adhoc",
+    entityId: caseId,
+    projectId,
+  })
 
   revalidatePath(`/projects/${projectId}`)
   return { success: true }

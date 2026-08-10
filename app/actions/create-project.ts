@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
 import { assertPermission } from "@/lib/auth/require-permission"
+import { resolveActorName, writeAuditLog } from "@/lib/audit/log"
 import { notifyDivisionForStep } from "@/lib/notifications/send"
 
 export type CreateProjectResult =
@@ -61,6 +62,20 @@ export async function createProject(formData: FormData): Promise<CreateProjectRe
   if (projectError) {
     return { success: false, error: projectError.message }
   }
+
+  const actorName = await resolveActorName(
+    user.id,
+    auth.ctx.profile?.name ?? user.email
+  )
+  await writeAuditLog({
+    actorId: user.id,
+    actorName,
+    action: "project.create",
+    summary: `Buat project “${name}”`,
+    entityType: "project",
+    entityId: project.id,
+    projectId: project.id,
+  })
 
   // Notify Marketing immediately when project is created (M1 unlocked)
   await notifyDivisionForStep({

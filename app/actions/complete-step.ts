@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 
 import { clearCalendarRemindersForStep, createStepUnlockCalendarEvents, resyncCalendarEventsForDateField } from "@/lib/google/calendar"
 import { dateToDateKeyWib } from "@/lib/format"
+import { resolveActorName, writeAuditLog } from "@/lib/audit/log"
 import { notifyDivisionForStep } from "@/lib/notifications/send"
 import {
   buildDoneCodes,
@@ -383,6 +384,23 @@ export async function completeStep(
     .single()
 
   const projectCompleted = refreshed?.status === "completed"
+
+  const actorName = await resolveActorName(user.id)
+  await writeAuditLog({
+    actorId: user.id,
+    actorName,
+    action: "step.complete",
+    summary: `Selesai ${stepCode} · ${project.name}${
+      options.bast2Required === false ? " · hanya BAST 1" : ""
+    }`,
+    entityType: "step",
+    entityId: stepCode,
+    projectId,
+    meta: {
+      outcome,
+      bast2Required: options.bast2Required,
+    },
+  })
 
   revalidatePath(`/projects/${projectId}`)
   revalidatePath("/")
