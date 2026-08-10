@@ -1,5 +1,6 @@
 import { AppHeader } from "@/components/layout/app-header"
 import { AppSidebar } from "@/components/layout/app-sidebar"
+import { BottomNavigation } from "@/components/layout/bottom-navigation"
 import { getUiTheme } from "@/lib/ui/theme.server"
 import { getMyTasks } from "@/lib/projects/tasks"
 import { type Division } from "@/lib/steps"
@@ -53,13 +54,16 @@ export async function AppShell({
           userDivisions={userDivisions}
           outstandingCount={outstandingCount}
         />
-        <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+        <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
+          {children}
+        </div>
+        <BottomNavigation outstandingCount={outstandingCount} />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col pb-20 md:pb-0">
       <AppHeader
         userName={userName}
         division={division}
@@ -67,6 +71,7 @@ export async function AppShell({
         outstandingCount={outstandingCount}
       />
       {children}
+      <BottomNavigation outstandingCount={outstandingCount} />
     </div>
   )
 }

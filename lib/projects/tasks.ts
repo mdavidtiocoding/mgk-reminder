@@ -52,6 +52,7 @@ export type MyTask = {
   customerName: string | null
   stepCode: string
   stepName: string
+  division: Division
   divisionLabel: string
   waitingDays: number
   isHogger: boolean
@@ -168,6 +169,7 @@ export async function getMyTasks(
         customerName: normalizeCustomer(project.customer)?.name ?? null,
         stepCode: step.code,
         stepName: step.name,
+        division: step.division,
         divisionLabel: getDivisionLabel(step.division),
         waitingDays,
         isHogger: waitingDays > thresholds.hoggerDays,
@@ -226,6 +228,7 @@ export async function getMyTasks(
         customerName: normalizeCustomer(project.customer)?.name ?? null,
         stepCode: step.code,
         stepName: step.name,
+        division: step.division,
         divisionLabel: getDivisionLabel(step.division),
         waitingDays,
         isHogger: waitingDays > thresholds.hoggerDays,

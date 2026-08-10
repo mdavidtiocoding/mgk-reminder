@@ -425,6 +425,18 @@ export const STAGE_LABELS: Record<number, string> = {
   8: "Tescom & BAST",
 }
 
+/** Compact labels for mobile phase chips / bottom progress. */
+export const STAGE_SHORT_LABELS: Record<number, string> = {
+  1: "Sales",
+  2: "Pre-Ship",
+  3: "Survey",
+  4: "Shipping",
+  5: "Post ETD",
+  6: "Pre-Arrival",
+  7: "MOS",
+  8: "BAST",
+}
+
 export const TOTAL_STAGE_COUNT = Object.keys(STAGE_LABELS).length
 
 const stepMap = new Map(STEPS.map((step) => [step.code, step]))
