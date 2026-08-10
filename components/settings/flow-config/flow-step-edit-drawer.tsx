@@ -182,6 +182,29 @@ export function FlowStepEditDrawer({
               />
             </EditSection>
 
+            <EditSection title="BAST">
+              <label className="flex items-start gap-2.5 text-sm">
+                <Checkbox
+                  checked={draft.bastChoice}
+                  disabled={isPending}
+                  onCheckedChange={(checked) =>
+                    setDraft(
+                      (d) => d && { ...d, bastChoice: checked === true }
+                    )
+                  }
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">Tanya pilihan BAST 1 / BAST 2</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Saat mark done, user pilih &quot;Hanya BAST 1&quot; (skip P9/A8)
+                    atau &quot;Ada BAST 1 &amp; BAST 2&quot; (+ estimasi). Biasanya
+                    aktif di P8.
+                  </span>
+                </span>
+              </label>
+            </EditSection>
+
             {!hasSubsteps && (
               <EditSection title="Mode Selesai & Checklist">
                 <Select

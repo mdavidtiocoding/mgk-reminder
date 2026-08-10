@@ -5,10 +5,10 @@ import { revalidatePath } from "next/cache"
 import type { ProfileStatus } from "@/lib/auth/profile-status"
 import {
   divisionsToPrimaryColumn,
-  isUserAdmin,
   normalizeDivisionsInput,
   resolveUserDivisions,
 } from "@/lib/auth/user-divisions"
+import { assertPermission } from "@/lib/auth/require-permission"
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/admin"
 import type { Division } from "@/lib/steps"
@@ -47,26 +47,10 @@ function parseDivisionsFromForm(formData: FormData): Division[] {
 }
 
 async function assertAdmin() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { ok: false as const, error: "Silakan login terlebih dahulu." }
+  const auth = await assertPermission("settings_users")
+  if (!auth.ok) {
+    return { ok: false as const, error: auth.error }
   }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("division, divisions, status")
-    .eq("id", user.id)
-    .single()
-
-  const userDivisions = resolveUserDivisions(profile)
-  if (!isUserAdmin(userDivisions) || profile?.status !== "active") {
-    return { ok: false as const, error: "Hanya admin yang bisa mengelola user." }
-  }
-
   return { ok: true as const }
 }
 

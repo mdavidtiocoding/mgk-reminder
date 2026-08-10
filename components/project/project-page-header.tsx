@@ -19,7 +19,9 @@ type ProjectPageHeaderProps = {
   createdAt: string
   status: ProjectStatus
   customers: CustomerOption[]
-  isAdmin: boolean
+  canEditProject?: boolean
+  canChangeStatus?: boolean
+  canDeleteProject?: boolean
 }
 
 const STATUS_LABELS = {
@@ -37,8 +39,23 @@ export function ProjectPageHeader({
   createdAt,
   status,
   customers,
-  isAdmin,
+  canEditProject = false,
+  canChangeStatus = false,
+  canDeleteProject = false,
 }: ProjectPageHeaderProps) {
+  const actions = (
+    <ProjectHeaderActions
+      projectId={projectId}
+      projectName={projectName}
+      customerId={customerId}
+      status={status}
+      customers={customers}
+      canEditProject={canEditProject}
+      canChangeStatus={canChangeStatus}
+      canDeleteProject={canDeleteProject}
+    />
+  )
+
   if (variant === "classic") {
     return (
       <>
@@ -57,14 +74,7 @@ export function ProjectPageHeader({
                 {STATUS_LABELS[status]}
               </Badge>
             </div>
-            <ProjectHeaderActions
-              projectId={projectId}
-              projectName={projectName}
-              customerId={customerId}
-              status={status}
-              customers={customers}
-              isAdmin={isAdmin}
-            />
+            {actions}
           </div>
           <p className="text-sm text-muted-foreground">
             Customer: {customerName ?? "—"}
@@ -110,14 +120,7 @@ export function ProjectPageHeader({
               Customer: {customerName ?? "—"} · Mulai {formatDate(createdAt)}
             </p>
           </div>
-          <ProjectHeaderActions
-            projectId={projectId}
-            projectName={projectName}
-            customerId={customerId}
-            status={status}
-            customers={customers}
-            isAdmin={isAdmin}
-          />
+          {actions}
         </div>
       </div>
     </div>

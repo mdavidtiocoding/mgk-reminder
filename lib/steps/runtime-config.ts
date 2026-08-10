@@ -22,6 +22,7 @@ type StepDefinitionRow = {
   trigger_config?: unknown
   has_outcome?: boolean | null
   outcome_reschedule_field?: string | null
+  bast_choice?: boolean | null
 }
 
 const DATE_FIELDS = new Set<string>([
@@ -45,6 +46,8 @@ export function mergeRuntimeSteps(rows: StepDefinitionRow[]): RuntimeStep[] {
       typeof rescheduleRaw === "string" && DATE_FIELDS.has(rescheduleRaw)
         ? (rescheduleRaw as DateField)
         : step.outcomeRescheduleField
+    const bastChoice =
+      row?.bast_choice != null ? row.bast_choice : step.bastChoice
 
     return {
       ...step,
@@ -58,6 +61,7 @@ export function mergeRuntimeSteps(rows: StepDefinitionRow[]): RuntimeStep[] {
       trigger: triggerOverride ?? step.trigger,
       hasOutcome: hasOutcome || undefined,
       outcomeRescheduleField,
+      bastChoice: bastChoice || undefined,
       substeps: parseSubsteps(row?.substeps),
     }
   })
@@ -68,11 +72,21 @@ export const loadRuntimeSteps = cache(
     const withTrigger = await supabase
       .from("step_definitions")
       .select(
-        "code, name, prerequisites, checklist_items, completion_mode, substeps, trigger_config, has_outcome, outcome_reschedule_field"
+        "code, name, prerequisites, checklist_items, completion_mode, substeps, trigger_config, has_outcome, outcome_reschedule_field, bast_choice"
       )
 
     if (!withTrigger.error) {
       return mergeRuntimeSteps((withTrigger.data ?? []) as StepDefinitionRow[])
+    }
+
+    const withOutcome = await supabase
+      .from("step_definitions")
+      .select(
+        "code, name, prerequisites, checklist_items, completion_mode, substeps, trigger_config, has_outcome, outcome_reschedule_field"
+      )
+
+    if (!withOutcome.error) {
+      return mergeRuntimeSteps((withOutcome.data ?? []) as StepDefinitionRow[])
     }
 
     const withMode = await supabase

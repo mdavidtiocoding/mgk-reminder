@@ -12,11 +12,11 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { CRON_SCHEDULE_WIB } from "@/lib/constants"
-import { requireAdmin } from "@/lib/auth/require-admin"
+import { requirePermission } from "@/lib/auth/require-permission"
 import { getStep } from "@/lib/steps"
 
 export default async function ReminderSettingsPage() {
-  const { profile, user, userDivisions, supabase } = await requireAdmin()
+  const { profile, user, userDivisions, supabase } = await requirePermission("settings_reminders")
 
   const [{ data: reminderConfigsRaw }, { data: stepDefRows }] = await Promise.all([
     supabase

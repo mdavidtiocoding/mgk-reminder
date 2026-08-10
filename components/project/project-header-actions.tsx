@@ -37,7 +37,9 @@ type ProjectHeaderActionsProps = {
   customerId: string | null
   status: ProjectStatus
   customers: Customer[]
-  isAdmin: boolean
+  canEditProject?: boolean
+  canChangeStatus?: boolean
+  canDeleteProject?: boolean
   /** Premium project hero — light controls on dark background */
   tone?: "default" | "dark"
 }
@@ -54,7 +56,9 @@ export function ProjectHeaderActions({
   customerId,
   status,
   customers,
-  isAdmin,
+  canEditProject = false,
+  canChangeStatus = false,
+  canDeleteProject = false,
   tone = "default",
 }: ProjectHeaderActionsProps) {
   const router = useRouter()
@@ -126,7 +130,7 @@ export function ProjectHeaderActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {isAdmin && (
+      {canChangeStatus && (
         <Select
           value={status}
           onValueChange={(v) => handleStatusChange(v as ProjectStatus)}
@@ -152,6 +156,7 @@ export function ProjectHeaderActions({
         </Select>
       )}
 
+      {canEditProject && (
       <Button
         type="button"
         variant={isDark ? "ghost" : "outline"}
@@ -166,8 +171,9 @@ export function ProjectHeaderActions({
         <Pencil className="size-3.5" />
         Edit
       </Button>
+      )}
 
-      {isAdmin && (
+      {canDeleteProject && (
         <Button
           type="button"
           variant={isDark ? "outline" : "destructive"}

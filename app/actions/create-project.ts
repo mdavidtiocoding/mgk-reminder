@@ -3,22 +3,21 @@
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
+import { assertPermission } from "@/lib/auth/require-permission"
 import { notifyDivisionForStep } from "@/lib/notifications/send"
-import { createClient } from "@/lib/supabase/server"
 
 export type CreateProjectResult =
   | { success: true; projectId: string }
   | { success: false; error: string }
 
 export async function createProject(formData: FormData): Promise<CreateProjectResult> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { success: false, error: "Silakan login terlebih dahulu." }
+  const auth = await assertPermission("create_project")
+  if (!auth.ok) {
+    return { success: false, error: auth.error }
   }
+
+  const supabase = auth.ctx.supabase
+  const user = auth.ctx.user
 
   const name = (formData.get("name") as string)?.trim()
   const customerId = (formData.get("customerId") as string)?.trim()

@@ -29,6 +29,7 @@ type AppSidebarProps = {
   division?: string | null
   userDivisions?: Division[]
   outstandingCount: number
+  canCreateProject?: boolean
 }
 
 const NAV_ITEMS = [
@@ -90,6 +91,7 @@ function SidebarPanel({
   variantBadge,
   pathname,
   outstandingCount,
+  canCreateProject = true,
   onNavigate,
   mobile = false,
 }: {
@@ -98,6 +100,7 @@ function SidebarPanel({
   variantBadge: string | null
   pathname: string
   outstandingCount: number
+  canCreateProject?: boolean
   onNavigate?: () => void
   mobile?: boolean
 }) {
@@ -130,17 +133,19 @@ function SidebarPanel({
           onNavigate={onNavigate}
           mobile={mobile}
         />
-        <Button
-          variant="outline"
-          size="sm"
-          className={cn("mx-1 gap-1.5", mobile && "h-11")}
-          asChild
-        >
-          <Link href="/projects/new" onClick={onNavigate}>
-            <Plus className="size-4" />
-            Project Baru
-          </Link>
-        </Button>
+        {canCreateProject && (
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn("mx-1 gap-1.5", mobile && "h-11")}
+            asChild
+          >
+            <Link href="/projects/new" onClick={onNavigate}>
+              <Plus className="size-4" />
+              Project Baru
+            </Link>
+          </Button>
+        )}
       </div>
 
       <div
@@ -188,6 +193,7 @@ export function AppSidebar({
   division,
   userDivisions = [],
   outstandingCount,
+  canCreateProject = true,
 }: AppSidebarProps) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -209,6 +215,7 @@ export function AppSidebar({
     variantBadge,
     pathname,
     outstandingCount,
+    canCreateProject,
   }
 
   return (

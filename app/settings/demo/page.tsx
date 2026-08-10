@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { requireAdmin } from "@/lib/auth/require-admin"
+import { requirePermission } from "@/lib/auth/require-permission"
 import {
   DIVISION_BADGE_STYLES,
   DIVISION_LABELS,
@@ -28,7 +28,7 @@ const DEMO_DIVISIONS: Division[] = [
 ]
 
 export default async function DemoPreviewIndexPage() {
-  const { profile, user, userDivisions } = await requireAdmin()
+  const { profile, user, userDivisions } = await requirePermission("settings_demo")
 
   return (
     <AppShell

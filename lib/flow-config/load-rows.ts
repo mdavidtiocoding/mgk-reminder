@@ -17,6 +17,7 @@ type StepDefRow = {
   completion_mode?: string | null
   substeps?: unknown
   trigger_config?: unknown
+  bast_choice?: boolean | null
 }
 
 async function fetchStepDefinitionRows(
@@ -25,12 +26,26 @@ async function fetchStepDefinitionRows(
   const fullQuery = await supabase
     .from("step_definitions")
     .select(
-      "code, name, division, stage, sort_order, prerequisites, checklist_items, completion_mode, substeps, trigger_config"
+      "code, name, division, stage, sort_order, prerequisites, checklist_items, completion_mode, substeps, trigger_config, bast_choice"
     )
     .order("sort_order")
 
   if (!fullQuery.error) {
     return (fullQuery.data ?? []) as StepDefRow[]
+  }
+
+  const withTrigger = await supabase
+    .from("step_definitions")
+    .select(
+      "code, name, division, stage, sort_order, prerequisites, checklist_items, completion_mode, substeps, trigger_config"
+    )
+    .order("sort_order")
+
+  if (!withTrigger.error) {
+    return ((withTrigger.data ?? []) as StepDefRow[]).map((row) => ({
+      ...row,
+      bast_choice: null,
+    }))
   }
 
   const withMode = await supabase
@@ -44,6 +59,7 @@ async function fetchStepDefinitionRows(
     return ((withMode.data ?? []) as StepDefRow[]).map((row) => ({
       ...row,
       trigger_config: null,
+      bast_choice: null,
     }))
   }
 
@@ -59,6 +75,7 @@ async function fetchStepDefinitionRows(
       ...row,
       completion_mode: null,
       trigger_config: null,
+      bast_choice: null,
     }))
   }
 
@@ -72,6 +89,7 @@ async function fetchStepDefinitionRows(
     substeps: null,
     completion_mode: null,
     trigger_config: null,
+    bast_choice: null,
   }))
 }
 
@@ -101,6 +119,10 @@ export async function loadFlowConfigRows(
       const stepForDescribe = stepFromLib
         ? { ...stepFromLib, trigger }
         : undefined
+      const bastChoice =
+        row.bast_choice != null
+          ? row.bast_choice
+          : (stepFromLib?.bastChoice ?? false)
 
       return {
         code: row.code,
@@ -123,6 +145,7 @@ export async function loadFlowConfigRows(
             (STEPS.find((s) => s.code === a)?.order ?? 0) -
             (STEPS.find((s) => s.code === b)?.order ?? 0)
         ),
+        bastChoice,
       }
     })
 }

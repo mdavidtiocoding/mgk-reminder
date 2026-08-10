@@ -1,6 +1,7 @@
 import { AppHeader } from "@/components/layout/app-header"
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import { BottomNavigation } from "@/components/layout/bottom-navigation"
+import { getRolePermissions, userHasPermission } from "@/lib/auth/permissions"
 import { getUiTheme } from "@/lib/ui/theme.server"
 import { getMyTasks } from "@/lib/projects/tasks"
 import { type Division } from "@/lib/steps"
@@ -13,6 +14,7 @@ type AppShellProps = {
   userDivisions?: Division[]
   /** Pass when the page already fetched tasks to avoid a duplicate query. */
   outstandingCount?: number
+  canCreateProject?: boolean
   children: React.ReactNode
 }
 
@@ -39,11 +41,20 @@ export async function AppShell({
   division,
   userDivisions = [],
   outstandingCount: outstandingCountProp,
+  canCreateProject: canCreateProjectProp,
   children,
 }: AppShellProps) {
   const theme = await getUiTheme()
   const outstandingCount =
     outstandingCountProp ?? (await fetchOutstandingCount(userDivisions))
+
+  const canCreateProject =
+    canCreateProjectProp ??
+    (await (async () => {
+      const supabase = await createClient()
+      const matrix = await getRolePermissions(supabase)
+      return userHasPermission(userDivisions, "create_project", matrix)
+    })())
 
   if (theme === "premium") {
     return (
@@ -53,11 +64,15 @@ export async function AppShell({
           division={division}
           userDivisions={userDivisions}
           outstandingCount={outstandingCount}
+          canCreateProject={canCreateProject}
         />
         <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
           {children}
         </div>
-        <BottomNavigation outstandingCount={outstandingCount} />
+        <BottomNavigation
+          outstandingCount={outstandingCount}
+          canCreateProject={canCreateProject}
+        />
       </div>
     )
   }
@@ -71,7 +86,10 @@ export async function AppShell({
         outstandingCount={outstandingCount}
       />
       {children}
-      <BottomNavigation outstandingCount={outstandingCount} />
+      <BottomNavigation
+        outstandingCount={outstandingCount}
+        canCreateProject={canCreateProject}
+      />
     </div>
   )
 }

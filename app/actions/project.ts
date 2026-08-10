@@ -3,29 +3,12 @@
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
+import { assertPermission } from "@/lib/auth/require-permission"
 import type { ProjectStatus } from "@/lib/steps"
-import { isUserAdmin, resolveUserDivisions } from "@/lib/auth/user-divisions"
-import { createClient } from "@/lib/supabase/server"
 
 export type ProjectActionResult =
   | { success: true }
   | { success: false; error: string }
-
-async function requireUser() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { supabase, user: null, profile: null }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("division, divisions, status")
-    .eq("id", user.id)
-    .single()
-
-  return { supabase, user, profile }
-}
 
 export async function updateProject(input: {
   projectId: string
@@ -33,8 +16,9 @@ export async function updateProject(input: {
   customerId?: string | null
   newCustomerName?: string | null
 }): Promise<ProjectActionResult> {
-  const { supabase, user } = await requireUser()
-  if (!user) return { success: false, error: "Unauthorized" }
+  const auth = await assertPermission("edit_project")
+  if (!auth.ok) return { success: false, error: auth.error }
+  const { supabase } = auth.ctx
 
   const name = input.name.trim()
   if (!name) return { success: false, error: "Nama project wajib diisi." }
@@ -74,18 +58,14 @@ export async function updateProjectStatus(
   projectId: string,
   status: ProjectStatus
 ): Promise<ProjectActionResult> {
-  const { supabase, user, profile } = await requireUser()
-  if (!user) return { success: false, error: "Unauthorized" }
-  const userDivisions = resolveUserDivisions(profile)
-  if (!isUserAdmin(userDivisions)) {
-    return { success: false, error: "Admin only" }
-  }
+  const auth = await assertPermission("change_project_status")
+  if (!auth.ok) return { success: false, error: auth.error }
 
   if (!["active", "on_hold", "completed"].includes(status)) {
     return { success: false, error: "Status tidak valid." }
   }
 
-  const { error } = await supabase
+  const { error } = await auth.ctx.supabase
     .from("projects")
     .update({ status })
     .eq("id", projectId)
@@ -99,17 +79,13 @@ export async function updateProjectStatus(
 }
 
 export async function deleteProject(projectId: string): Promise<ProjectActionResult> {
-  const { supabase, user, profile } = await requireUser()
-  if (!user) return { success: false, error: "Unauthorized" }
-  const userDivisions = resolveUserDivisions(profile)
-  if (!isUserAdmin(userDivisions)) {
-    return { success: false, error: "Admin only" }
-  }
+  const auth = await assertPermission("delete_project")
+  if (!auth.ok) return { success: false, error: auth.error }
 
   // .select() is required: without a DELETE RLS policy Supabase returns
   // success with 0 rows and no error — project would appear "deleted" in UI
   // but still exist in the DB.
-  const { data, error } = await supabase
+  const { data, error } = await auth.ctx.supabase
     .from("projects")
     .delete()
     .eq("id", projectId)

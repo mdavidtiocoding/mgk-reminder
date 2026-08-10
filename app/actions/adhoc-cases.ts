@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 
-import { isUserAdmin, resolveUserDivisions, userHasDivision } from "@/lib/auth/user-divisions"
+import { assertPermission } from "@/lib/auth/require-permission"
 import { createClient } from "@/lib/supabase/server"
 
 export type AdhocActionResult =
@@ -10,30 +10,12 @@ export type AdhocActionResult =
   | { success: false; error: string }
 
 async function assertCanManageAdhoc(projectId: string) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { ok: false as const, error: "Silakan login terlebih dahulu." }
+  const auth = await assertPermission("manage_adhoc")
+  if (!auth.ok) {
+    return { ok: false as const, error: auth.error }
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("division, divisions")
-    .eq("id", user.id)
-    .single()
-
-  const userDivisions = resolveUserDivisions(profile)
-  if (!isUserAdmin(userDivisions) && !userHasDivision(userDivisions, "project")) {
-    return {
-      ok: false as const,
-      error: "Hanya division Project atau admin yang bisa kelola ad-hoc case.",
-    }
-  }
-
-  const { data: project } = await supabase
+  const { data: project } = await auth.ctx.supabase
     .from("projects")
     .select("id")
     .eq("id", projectId)
@@ -43,7 +25,11 @@ async function assertCanManageAdhoc(projectId: string) {
     return { ok: false as const, error: "Project tidak ditemukan." }
   }
 
-  return { ok: true as const, userId: user.id, supabase }
+  return {
+    ok: true as const,
+    userId: auth.ctx.user.id,
+    supabase: auth.ctx.supabase,
+  }
 }
 
 export async function createAdhocCase(

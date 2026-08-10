@@ -15,18 +15,31 @@ import { cn } from "@/lib/utils"
 
 type BottomNavigationProps = {
   outstandingCount?: number
+  canCreateProject?: boolean
 }
 
-const TABS = [
-  { href: "/", label: "Home", icon: LayoutDashboard, exact: true },
-  { href: "/tasks", label: "Tasks", icon: ListTodo, exact: false },
-  { href: "/?focus=search", label: "Cari", icon: Search, exact: false, search: true },
-  { href: "/projects/new", label: "Baru", icon: PlusCircle, exact: false },
-  { href: "/settings", label: "Settings", icon: Settings, exact: false },
-] as const
-
-export function BottomNavigation({ outstandingCount = 0 }: BottomNavigationProps) {
+export function BottomNavigation({
+  outstandingCount = 0,
+  canCreateProject = true,
+}: BottomNavigationProps) {
   const pathname = usePathname()
+
+  const tabs = [
+    { href: "/", label: "Home", icon: LayoutDashboard, exact: true },
+    { href: "/tasks", label: "Tasks", icon: ListTodo, exact: false },
+    { href: "/?focus=search", label: "Cari", icon: Search, exact: false, search: true },
+    ...(canCreateProject
+      ? [
+          {
+            href: "/projects/new",
+            label: "Baru",
+            icon: PlusCircle,
+            exact: false,
+          } as const,
+        ]
+      : []),
+    { href: "/settings", label: "Settings", icon: Settings, exact: false },
+  ]
 
   return (
     <nav
@@ -35,7 +48,7 @@ export function BottomNavigation({ outstandingCount = 0 }: BottomNavigationProps
       aria-label="Navigasi utama"
     >
       <div className="flex items-stretch justify-around">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const Icon = tab.icon
           const isSearch = "search" in tab && tab.search
           const active = isSearch

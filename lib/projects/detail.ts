@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { userHasDivision, isUserAdmin } from "@/lib/auth/user-divisions"
+import { getRolePermissions, userHasPermission } from "@/lib/auth/permissions"
+import { userHasDivision } from "@/lib/auth/user-divisions"
 import { computeProjectSteps, type CompletionInfo } from "@/lib/projects/active-steps"
 import { buildStepFlowWarnings } from "@/lib/projects/flow-warnings"
 import {
@@ -135,9 +136,11 @@ export async function getProjectDetail(
   projectId: string,
   userDivisions: Division[] = []
 ): Promise<ProjectDetail | null> {
-  const [runtimeSteps, substepCompletions, { data, error }] = await Promise.all([
+  const [runtimeSteps, substepCompletions, matrix, { data, error }] =
+    await Promise.all([
     loadRuntimeSteps(supabase),
     loadSubstepCompletionsForProject(supabase, projectId),
+    getRolePermissions(supabase),
     supabase
       .from("projects")
       .select(
@@ -256,7 +259,9 @@ export async function getProjectDetail(
       canEditSubsteps:
         userCanCompleteStep &&
         (computed.status === "active" || pendingReminders.length > 0),
-      canUndo: computed.status === "done" && isUserAdmin(userDivisions),
+      canUndo:
+        computed.status === "done" &&
+        userHasPermission(userDivisions, "undo_step", matrix),
       hasPendingReminderSubsteps: pendingReminders.length > 0,
       flowWarnings: [],
     }

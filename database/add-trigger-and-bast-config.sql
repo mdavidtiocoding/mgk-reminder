@@ -42,3 +42,14 @@ WHERE code = 'S5';
 UPDATE public.step_definitions
 SET checklist_items = ARRAY['Subkon: Ya/Tidak','Kos','Steger','Motor','Tiket luar kota']
 WHERE code = 'P5';
+
+-- BAST choice prompt when completing a step (typically P8)
+ALTER TABLE public.step_definitions
+  ADD COLUMN IF NOT EXISTS bast_choice BOOLEAN;
+
+COMMENT ON COLUMN public.step_definitions.bast_choice IS
+  'If true, mark-done asks BAST 1 only vs BAST 1+2 (and can auto-skip P9/A8).';
+
+UPDATE public.step_definitions
+SET bast_choice = true
+WHERE code = 'P8' AND bast_choice IS NULL;

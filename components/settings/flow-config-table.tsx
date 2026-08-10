@@ -65,6 +65,8 @@ export type FlowConfigRow = {
   triggerDescription: string
   unlocksSteps: string[]
   trigger?: import("@/lib/steps").StepTrigger
+  /** Ask BAST 1 only vs BAST 1+2 on mark done (typically P8). */
+  bastChoice: boolean
 }
 
 type AllStepOption = {
@@ -644,7 +646,16 @@ function FlowConfigTableRow({
       title={isInteractive ? "Klik untuk edit step" : undefined}
     >
       <td className={cn(cell, "font-mono text-xs")}>{row.code}</td>
-      <td className={cn(cell, "font-medium leading-snug")}>{displayName}</td>
+      <td className={cn(cell, "font-medium leading-snug")}>
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          {displayName}
+          {row.bastChoice && (
+            <span className="rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+              BAST choice
+            </span>
+          )}
+        </span>
+      </td>
       <td className={cell}>
         {badgeStyle ? (
           <span

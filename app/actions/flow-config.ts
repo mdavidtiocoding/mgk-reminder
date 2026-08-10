@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 
-import { requireAdmin } from "@/lib/auth/require-admin"
+import { requirePermission } from "@/lib/auth/require-permission"
 import {
   parseCompletionMode,
   validateCompletionModeConfig,
@@ -36,7 +36,7 @@ function buildPrereqMap(steps: StepPrereq[]): Map<string, string[]> {
 }
 
 async function applyPrerequisiteUpdates(
-  supabase: Awaited<ReturnType<typeof requireAdmin>>["supabase"],
+  supabase: Awaited<ReturnType<typeof requirePermission>>["supabase"],
   updates: { code: string; prerequisites: string[] }[]
 ): Promise<{ success: true } | { success: false; error: string }> {
   for (const update of updates) {
@@ -68,7 +68,7 @@ export async function updateStepPrerequisites(
   stepCode: string,
   prerequisites: string[]
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const { supabase } = await requireAdmin()
+  const { supabase } = await requirePermission("settings_flow")
 
   const uniquePrerequisites = [...new Set(prerequisites)]
 
@@ -114,7 +114,7 @@ export async function updateStepUnlocks(
   sourceStepCode: string,
   unlocksSteps: string[]
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const { supabase } = await requireAdmin()
+  const { supabase } = await requirePermission("settings_flow")
 
   const uniqueUnlocks = [...new Set(unlocksSteps)].filter(
     (code) => code !== sourceStepCode
@@ -200,7 +200,7 @@ export async function updateStepCompletionConfig(
     checklistItems: string[]
   }
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const { supabase } = await requireAdmin()
+  const { supabase } = await requirePermission("settings_flow")
 
   const mode = parseCompletionMode(config.completionMode)
   const checklistItems = config.checklistItems.map((item) => item.trim()).filter(Boolean)
@@ -249,7 +249,7 @@ export async function updateStepSubsteps(
   stepCode: string,
   substeps: { key: string; label: string; sortOrder: number; kind?: "required" | "reminder" }[]
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const { supabase } = await requireAdmin()
+  const { supabase } = await requirePermission("settings_flow")
 
   const normalized = substeps
     .map((substep, index) => ({
@@ -292,7 +292,7 @@ export async function duplicateStepConfig(
   sourceCode: string,
   targetCode: string
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const { supabase } = await requireAdmin()
+  const { supabase } = await requirePermission("settings_flow")
 
   if (sourceCode === targetCode) {
     return { success: false, error: "Step sumber dan tujuan harus berbeda." }
@@ -387,7 +387,7 @@ export async function duplicateStepConfig(
 export async function resetStepConfig(
   stepCode: string
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const { supabase } = await requireAdmin()
+  const { supabase } = await requirePermission("settings_flow")
   const { getStep } = await import("@/lib/steps")
   const { inferCompletionMode } = await import("@/lib/steps/completion-mode")
 
@@ -444,7 +444,7 @@ export async function updateStepTriggerConfig(
   stepCode: string,
   trigger: Record<string, unknown>
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const { supabase } = await requireAdmin()
+  const { supabase } = await requirePermission("settings_flow")
 
   const { parseTriggerConfig } = await import("@/lib/steps/trigger-config")
   const parsed = parseTriggerConfig(trigger)
@@ -464,6 +464,39 @@ export async function updateStepTriggerConfig(
       success: false,
       error: result.error.message.includes("trigger_config")
         ? "Kolom trigger_config belum ada ? jalankan database/add-trigger-and-bast-config.sql"
+        : result.error.message,
+    }
+  }
+  if (!result.data) {
+    return { success: false, error: "Step tidak ditemukan." }
+  }
+
+  revalidatePath("/settings/flow")
+  revalidatePath("/projects/[id]", "page")
+  revalidatePath("/")
+  revalidatePath("/tasks")
+
+  return { success: true }
+}
+
+export async function updateStepBastChoice(
+  stepCode: string,
+  bastChoice: boolean
+): Promise<{ success: true } | { success: false; error: string }> {
+  const { supabase } = await requirePermission("settings_flow")
+
+  const result = await supabase
+    .from("step_definitions")
+    .update({ bast_choice: bastChoice })
+    .eq("code", stepCode)
+    .select("code")
+    .maybeSingle()
+
+  if (result.error) {
+    return {
+      success: false,
+      error: result.error.message.includes("bast_choice")
+        ? "Kolom bast_choice belum ada — jalankan database/add-bast-choice-config.sql"
         : result.error.message,
     }
   }

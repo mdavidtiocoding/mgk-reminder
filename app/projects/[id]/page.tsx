@@ -6,13 +6,10 @@ import { ProjectPageHeader } from "@/components/project/project-page-header"
 import { StageProgressBar } from "@/components/project/stage-progress-bar"
 import { StepTimeline } from "@/components/project/step-timeline"
 import { AppShell } from "@/components/layout/app-shell"
+import { getRolePermissions, userHasPermission } from "@/lib/auth/permissions"
 import { FEATURES } from "@/lib/features"
 import { getProjectDetail } from "@/lib/projects/detail"
-import {
-  isUserAdmin,
-  resolveUserDivisions,
-  userHasDivision,
-} from "@/lib/auth/user-divisions"
+import { resolveUserDivisions } from "@/lib/auth/user-divisions"
 import { getUiTheme } from "@/lib/ui/theme.server"
 import { createClient } from "@/lib/supabase/server"
 
@@ -40,7 +37,7 @@ export default async function ProjectDetailPage({
     .single()
 
   const userDivisions = resolveUserDivisions(profile)
-  const isAdmin = isUserAdmin(userDivisions)
+  const matrix = await getRolePermissions(supabase)
   const theme = await getUiTheme()
 
   const [project, adhocCases, { data: customers }] = await Promise.all([
@@ -53,11 +50,13 @@ export default async function ProjectDetailPage({
     notFound()
   }
 
+  const canManageAdhoc = userHasPermission(
+    userDivisions,
+    "manage_adhoc",
+    matrix
+  )
   const showAdhoc =
-    FEATURES.adhocCases &&
-    (isAdmin || userHasDivision(userDivisions, "project") || adhocCases.length > 0)
-  const canManageAdhoc =
-    isAdmin || userHasDivision(userDivisions, "project")
+    FEATURES.adhocCases && (canManageAdhoc || adhocCases.length > 0)
 
   return (
     <AppShell
@@ -81,7 +80,21 @@ export default async function ProjectDetailPage({
           createdAt={project.createdAt}
           status={project.status}
           customers={customers ?? []}
-          isAdmin={isAdmin}
+          canEditProject={userHasPermission(
+            userDivisions,
+            "edit_project",
+            matrix
+          )}
+          canChangeStatus={userHasPermission(
+            userDivisions,
+            "change_project_status",
+            matrix
+          )}
+          canDeleteProject={userHasPermission(
+            userDivisions,
+            "delete_project",
+            matrix
+          )}
         />
 
         <StageProgressBar

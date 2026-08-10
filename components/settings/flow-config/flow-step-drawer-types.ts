@@ -17,6 +17,7 @@ export type FlowStepDraft = {
   checklistItems: string[]
   substeps: SubstepDefinition[]
   trigger: StepTrigger
+  bastChoice: boolean
 }
 
 export type FlowStepDrawerHandlers = {
@@ -35,6 +36,7 @@ export function buildDraftFromRow(row: FlowConfigRow, displayName: string): Flow
     checklistItems: [...row.checklistItems],
     substeps: row.substeps.map((s) => ({ ...s })),
     trigger: row.trigger ?? stepDef?.trigger ?? { type: "immediate" },
+    bastChoice: row.bastChoice ?? stepDef?.bastChoice ?? false,
   }
 }
 
@@ -46,7 +48,8 @@ export function draftsEqual(a: FlowStepDraft, b: FlowStepDraft): boolean {
     a.completionMode === b.completionMode &&
     arraysEqual(a.checklistItems, b.checklistItems) &&
     substepsEqual(a.substeps, b.substeps) &&
-    triggerConfigsEqual(a.trigger, b.trigger)
+    triggerConfigsEqual(a.trigger, b.trigger) &&
+    a.bastChoice === b.bastChoice
   )
 }
 

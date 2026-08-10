@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react"
 import { DemoTaskPreview } from "@/components/settings/demo-task-preview"
 import { AppShell } from "@/components/layout/app-shell"
 import { Button } from "@/components/ui/button"
-import { requireAdmin } from "@/lib/auth/require-admin"
+import { requirePermission } from "@/lib/auth/require-permission"
 import { loadFlowConfigRows } from "@/lib/flow-config/load-rows"
 import {
   DIVISION_LABELS,
@@ -32,7 +32,7 @@ export default async function DemoDivisionPreviewPage({
     notFound()
   }
 
-  const { profile, user, userDivisions, supabase } = await requireAdmin()
+  const { profile, user, userDivisions, supabase } = await requirePermission("settings_demo")
   const allRows = await loadFlowConfigRows(supabase)
   const rows = allRows.filter((row) => row.division === division)
 

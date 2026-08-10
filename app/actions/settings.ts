@@ -2,18 +2,8 @@
 
 import { revalidatePath } from "next/cache"
 
-import { isUserAdmin, resolveUserDivisions } from "@/lib/auth/user-divisions"
+import { assertPermission } from "@/lib/auth/require-permission"
 import { createClient } from "@/lib/supabase/server"
-
-async function assertAdminProfile(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("division, divisions")
-    .eq("id", userId)
-    .single()
-
-  return isUserAdmin(resolveUserDivisions(profile))
-}
 
 export async function updateNotificationPrefs(formData: FormData): Promise<void> {
   const supabase = await createClient()
@@ -43,16 +33,8 @@ export async function updateReminderConfig(
     notify_channel?: "all" | "email" | "push" | "calendar"
   }
 ) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) return { success: false, error: "Unauthorized" }
-
-  if (!(await assertAdminProfile(supabase, user.id))) {
-    return { success: false, error: "Admin only" }
-  }
+  const auth = await assertPermission("settings_reminders")
+  if (!auth.ok) return { success: false, error: auth.error }
 
   const payload: Record<string, unknown> = {}
   if (updates.enabled !== undefined) {
@@ -68,7 +50,7 @@ export async function updateReminderConfig(
     payload.notify_channel = updates.notify_channel
   }
 
-  const { error } = await supabase
+  const { error } = await auth.ctx.supabase
     .from("reminder_config")
     .update(payload)
     .eq("step_code", stepCode)
@@ -80,16 +62,8 @@ export async function updateReminderConfig(
 }
 
 export async function updateStepDefinitionName(stepCode: string, name: string) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) return { success: false, error: "Unauthorized" }
-
-  if (!(await assertAdminProfile(supabase, user.id))) {
-    return { success: false, error: "Admin only" }
-  }
+  const auth = await assertPermission("settings_reminders")
+  if (!auth.ok) return { success: false, error: auth.error }
 
   const trimmed = name.trim()
   if (!trimmed) {
@@ -99,7 +73,7 @@ export async function updateStepDefinitionName(stepCode: string, name: string) {
     return { success: false, error: "Nama terlalu panjang" }
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await auth.ctx.supabase
     .from("step_definitions")
     .update({ name: trimmed })
     .eq("code", stepCode)
@@ -126,16 +100,8 @@ export async function updateAppConfig(updates: {
   hoggerDays?: number
   warningDays?: number
 }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) return { success: false, error: "Unauthorized" }
-
-  if (!(await assertAdminProfile(supabase, user.id))) {
-    return { success: false, error: "Admin only" }
-  }
+  const auth = await assertPermission("settings_app_config")
+  if (!auth.ok) return { success: false, error: auth.error }
 
   const rows: { key: string; value: string }[] = []
   if (updates.hoggerDays !== undefined) {
@@ -153,7 +119,9 @@ export async function updateAppConfig(updates: {
 
   if (rows.length === 0) return { success: true }
 
-  const { error } = await supabase.from("app_config").upsert(rows, { onConflict: "key" })
+  const { error } = await auth.ctx.supabase
+    .from("app_config")
+    .upsert(rows, { onConflict: "key" })
   if (error) return { success: false, error: error.message }
 
   revalidatePath("/settings")

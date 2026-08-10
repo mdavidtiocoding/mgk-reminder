@@ -13,12 +13,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { requireAdmin } from "@/lib/auth/require-admin"
+import { requirePermission } from "@/lib/auth/require-permission"
 import { resolveUserDivisions } from "@/lib/auth/user-divisions"
 import type { Division } from "@/lib/steps"
 
 export default async function UserManagementPage() {
-  const { profile, user, userDivisions } = await requireAdmin()
+  const { profile, user, userDivisions } = await requirePermission("settings_users")
   const users = await listUsers()
 
   return (

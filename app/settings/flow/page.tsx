@@ -12,13 +12,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { requireAdmin } from "@/lib/auth/require-admin"
+import { requirePermission } from "@/lib/auth/require-permission"
 import { loadFlowConfigRows } from "@/lib/flow-config/load-rows"
 import { getUiTheme } from "@/lib/ui/theme.server"
 import { cn } from "@/lib/utils"
 
 export default async function FlowSettingsPage() {
-  const { profile, user, userDivisions, supabase } = await requireAdmin()
+  const { profile, user, userDivisions, supabase } = await requirePermission("settings_flow")
   const rows = await loadFlowConfigRows(supabase)
 
   const allStepOptions = rows.map((row) => ({

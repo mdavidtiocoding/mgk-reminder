@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { GitBranch } from "lucide-react"
+import { GitBranch, Shield } from "lucide-react"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
@@ -20,30 +20,19 @@ import {
 } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { getAppThresholds } from "@/lib/app-config"
-import { isUserAdmin, resolveUserDivisions } from "@/lib/auth/user-divisions"
+import { getPermissionContext } from "@/lib/auth/require-permission"
 import { getUiTheme } from "@/lib/ui/theme.server"
-import { createClient } from "@/lib/supabase/server"
 
 type SettingsPageProps = {
   searchParams: Promise<{ google?: string; msg?: string }>
 }
 
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const ctx = await getPermissionContext()
+  if (!ctx) redirect("/login")
+  if (ctx.profile?.status !== "active") redirect("/pending-approval")
 
-  if (!user) redirect("/login")
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("name, division, divisions, notif_email, notif_push, google_calendar_connected")
-    .eq("id", user.id)
-    .single()
-
-  const userDivisions = resolveUserDivisions(profile)
-  const isAdmin = isUserAdmin(userDivisions)
+  const { user, profile, userDivisions, permissions, supabase } = ctx
   const { google: googleStatus, msg: googleErrorMsg } = await searchParams
 
   const headersList = await headers()
@@ -54,8 +43,17 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
     : new URL("http://localhost:3000/settings")
   const googleRedirectUriHint = resolveGoogleRedirectUri(requestUrl)
 
-  const thresholds = isAdmin ? await getAppThresholds(supabase) : null
+  const thresholds = permissions.settings_app_config
+    ? await getAppThresholds(supabase)
+    : null
   const theme = await getUiTheme()
+  const showAdminSection =
+    permissions.settings_app_config ||
+    permissions.settings_users ||
+    permissions.settings_reminders ||
+    permissions.settings_demo ||
+    permissions.settings_flow ||
+    permissions.settings_permissions
 
   return (
     <AppShell
@@ -121,120 +119,150 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           </CardContent>
         </Card>
 
-        {isAdmin && thresholds && (
+        {showAdminSection && (
           <>
-            <Card>
-              <CardHeader>
-                <CardTitle>Konfigurasi</CardTitle>
-                <CardDescription>
-                  Threshold untuk flag HOGGER dan warning &quot;waiting since&quot;
-                  di dashboard.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <AppConfigForm
-                  hoggerDays={thresholds.hoggerDays}
-                  warningDays={thresholds.warningDays}
-                />
-              </CardContent>
-            </Card>
+            {permissions.settings_permissions && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="size-4" />
+                    Akses per role
+                  </CardTitle>
+                  <CardDescription>
+                    Centang fitur yang boleh dipakai tiap divisi (Marketing,
+                    Finance, Admin, dll).
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button size="sm" asChild>
+                    <Link href="/settings/permissions">Kelola akses role</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>User Management</CardTitle>
-                <CardDescription>
-                  Kelola user, assign division, dan setujui pendaftar baru.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button size="sm" asChild>
-                  <Link href="/settings/users">Kelola Users</Link>
-                </Button>
-              </CardContent>
-            </Card>
+            {permissions.settings_app_config && thresholds && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Konfigurasi</CardTitle>
+                  <CardDescription>
+                    Threshold untuk flag HOGGER dan warning &quot;waiting since&quot;
+                    di dashboard.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AppConfigForm
+                    hoggerDays={thresholds.hoggerDays}
+                    warningDays={thresholds.warningDays}
+                  />
+                </CardContent>
+              </Card>
+            )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Reminder Config</CardTitle>
-                <CardDescription>
-                  Admin only — atur repeat cadence, max repeat, dan channel
-                  notifikasi per step.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button size="sm" asChild>
-                  <Link href="/settings/reminders">Kelola Reminder</Link>
-                </Button>
-              </CardContent>
-            </Card>
+            {permissions.settings_users && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>User Management</CardTitle>
+                  <CardDescription>
+                    Kelola user, assign division, dan setujui pendaftar baru.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button size="sm" asChild>
+                    <Link href="/settings/users">Kelola Users</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Demo Task Preview</CardTitle>
-                <CardDescription>
-                  Lihat kartu step per divisi (seperti My Tasks), lalu edit
-                  checklist / sub-step / trigger langsung — nyambung ke Flow
-                  Config.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <Button size="sm" asChild>
-                  <Link href="/settings/demo">Buka Demo Preview</Link>
-                </Button>
-                <div className="flex flex-wrap gap-2">
-                  {(
-                    [
-                      ["ar", "AR"],
-                      ["shipping", "Shipping"],
-                      ["project", "Project"],
-                      ["finance", "Finance"],
-                      ["logistik", "Logistik"],
-                      ["marketing", "Marketing"],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <Button key={value} size="sm" variant="outline" asChild>
-                      <Link href={`/settings/demo/${value}`}>Demo {label}</Link>
-                    </Button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            {permissions.settings_reminders && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Reminder Config</CardTitle>
+                  <CardDescription>
+                    Atur repeat cadence, max repeat, dan channel notifikasi per
+                    step.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button size="sm" asChild>
+                    <Link href="/settings/reminders">Kelola Reminder</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <GitBranch className="size-4" />
-                  Konfigurasi Flow Step
-                </CardTitle>
-                <CardDescription>
-                  Atur prasyarat, checklist, dan trigger reminder (mis. 3 hari
-                  sebelum ETA) tanpa coding. Filter per divisi di halaman Flow.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <Button size="sm" asChild>
-                  <Link href="/settings/flow">Kelola Flow</Link>
-                </Button>
-                <div className="flex flex-wrap gap-2">
-                  {(
-                    [
-                      ["shipping", "Shipping"],
-                      ["project", "Project"],
-                      ["finance", "Finance"],
-                      ["ar", "AR"],
-                      ["logistik", "Logistik"],
-                      ["marketing", "Marketing"],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <Button key={value} size="sm" variant="outline" asChild>
-                      <Link href={`/settings/flow?division=${value}`}>
-                        {label}
-                      </Link>
-                    </Button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            {permissions.settings_demo && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Demo Task Preview</CardTitle>
+                  <CardDescription>
+                    Lihat kartu step per divisi (seperti My Tasks), lalu edit
+                    checklist / sub-step / trigger langsung — nyambung ke Flow
+                    Config.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3">
+                  <Button size="sm" asChild>
+                    <Link href="/settings/demo">Buka Demo Preview</Link>
+                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    {(
+                      [
+                        ["ar", "AR"],
+                        ["shipping", "Shipping"],
+                        ["project", "Project"],
+                        ["finance", "Finance"],
+                        ["logistik", "Logistik"],
+                        ["marketing", "Marketing"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <Button key={value} size="sm" variant="outline" asChild>
+                        <Link href={`/settings/demo/${value}`}>Demo {label}</Link>
+                      </Button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {permissions.settings_flow && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <GitBranch className="size-4" />
+                    Konfigurasi Flow Step
+                  </CardTitle>
+                  <CardDescription>
+                    Atur prasyarat, checklist, dan trigger reminder (mis. 3 hari
+                    sebelum ETA) tanpa coding. Filter per divisi di halaman Flow.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3">
+                  <Button size="sm" asChild>
+                    <Link href="/settings/flow">Kelola Flow</Link>
+                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    {(
+                      [
+                        ["shipping", "Shipping"],
+                        ["project", "Project"],
+                        ["finance", "Finance"],
+                        ["ar", "AR"],
+                        ["logistik", "Logistik"],
+                        ["marketing", "Marketing"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <Button key={value} size="sm" variant="outline" asChild>
+                        <Link href={`/settings/flow?division=${value}`}>
+                          {label}
+                        </Link>
+                      </Button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </>
         )}
       </main>

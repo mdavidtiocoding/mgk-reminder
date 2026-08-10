@@ -2,13 +2,13 @@
 
 import { revalidatePath } from "next/cache"
 
+import { assertPermission } from "@/lib/auth/require-permission"
 import {
   buildDoneCodes,
   computeProjectSteps,
 } from "@/lib/projects/active-steps"
 import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
 import { loadSubstepCompletionsForProject } from "@/lib/projects/substep-data"
-import { isUserAdmin, resolveUserDivisions } from "@/lib/auth/user-divisions"
 import { createClient } from "@/lib/supabase/server"
 
 export type UndoStepResult =
@@ -19,22 +19,12 @@ export async function undoStep(
   projectId: string,
   stepCode: string
 ): Promise<UndoStepResult> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { success: false, error: "Silakan login terlebih dahulu." }
+  const auth = await assertPermission("undo_step")
+  if (!auth.ok) {
+    return { success: false, error: auth.error }
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("division, divisions")
-    .eq("id", user.id)
-    .single()
-
-  const userDivisions = resolveUserDivisions(profile)
+  const supabase = auth.ctx.supabase
 
   const [runtimeSteps, substepCompletions, { data: project }] = await Promise.all([
     loadRuntimeSteps(supabase),
@@ -59,10 +49,6 @@ export async function undoStep(
 
   if (!project) {
     return { success: false, error: "Project tidak ditemukan." }
-  }
-
-  if (!isUserAdmin(userDivisions)) {
-    return { success: false, error: "Hanya admin yang bisa membatalkan step selesai." }
   }
 
   const step = runtimeSteps.find((s) => s.code === stepCode)

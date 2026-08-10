@@ -1,6 +1,7 @@
 "use server"
 
 import {
+  updateStepBastChoice,
   updateStepCompletionConfig,
   updateStepPrerequisites,
   updateStepSubsteps,
@@ -71,6 +72,11 @@ export async function saveFlowStepDraft(
       stepCode,
       draft.trigger as unknown as Record<string, unknown>
     )
+    if (!result.success) return result
+  }
+
+  if (draft.bastChoice !== original.bastChoice) {
+    const result = await updateStepBastChoice(stepCode, draft.bastChoice)
     if (!result.success) return result
   }
 
