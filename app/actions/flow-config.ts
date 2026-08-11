@@ -583,12 +583,7 @@ export async function updateStepNoteRouteConfig(
   const { supabase } = await requirePermission("settings_flow")
 
   const targets = [...new Set(config.targets.map((code) => code.trim()).filter(Boolean))]
-  if (config.enabled && targets.length === 0) {
-    return {
-      success: false,
-      error: "Pilih minimal satu step tujuan untuk dropdown Ada/Tidak.",
-    }
-  }
+  const enabled = config.enabled && targets.length > 0
   if (targets.includes(stepCode)) {
     return {
       success: false,
@@ -596,7 +591,7 @@ export async function updateStepNoteRouteConfig(
     }
   }
 
-  const payload = config.enabled ? { enabled: true, targets } : { enabled: false, targets }
+  const payload = enabled ? { enabled: true, targets } : { enabled: false, targets }
 
   const result = await supabase
     .from("step_definitions")

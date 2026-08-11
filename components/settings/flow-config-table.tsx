@@ -4,14 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Eye, GitBranch, Pencil, Table2 } from "lucide-react"
 
-import {
-  updateStepCompletionConfig,
-  updateStepPrerequisites,
-  updateStepSubsteps,
-  updateStepTriggerConfig,
-  updateStepUnlocks,
-} from "@/app/actions/flow-config"
-import { updateStepDefinitionName } from "@/app/actions/settings"
+import { saveFlowStepDraft } from "@/lib/flow-config/save-draft"
 import {
   DependencyDisplay,
   SubstepDisplay,
@@ -50,7 +43,6 @@ import {
   COMPLETION_MODE_LABELS,
   type StepCompletionMode,
 } from "@/lib/steps/completion-mode"
-import { triggerConfigsEqual } from "@/lib/steps/trigger-config"
 import { cn } from "@/lib/utils"
 
 export type FlowConfigRow = {
@@ -284,85 +276,17 @@ export function FlowConfigTable({
     draft: FlowStepDraft,
     original: FlowStepDraft
   ) {
-    let ok = true
-
+    const result = await saveFlowStepDraft(stepCode, draft, original)
+    if (!result.success) {
+      showToast(`Gagal: ${result.error}`)
+      return { success: false, error: result.error }
+    }
     if (draft.name.trim() !== original.name) {
-      const result = await updateStepDefinitionName(stepCode, draft.name.trim())
-      if (result?.success) {
-        setNameOverrides((prev) => ({ ...prev, [stepCode]: draft.name.trim() }))
-      } else {
-        showToast(result?.error ? `Gagal: ${result.error}` : "Gagal menyimpan nama")
-        ok = false
-      }
+      setNameOverrides((prev) => ({ ...prev, [stepCode]: draft.name.trim() }))
     }
-    if (JSON.stringify(draft.prerequisites) !== JSON.stringify(original.prerequisites)) {
-      const result = await updateStepPrerequisites(stepCode, draft.prerequisites)
-      if (!result.success) {
-        showToast(`Gagal: ${result.error}`)
-        ok = false
-      }
-    }
-    if (JSON.stringify(draft.unlocksSteps) !== JSON.stringify(original.unlocksSteps)) {
-      const result = await updateStepUnlocks(stepCode, draft.unlocksSteps)
-      if (!result.success) {
-        showToast(`Gagal: ${result.error}`)
-        ok = false
-      }
-    }
-    if (
-      draft.completionMode !== original.completionMode ||
-      JSON.stringify(draft.checklistItems) !== JSON.stringify(original.checklistItems)
-    ) {
-      const result = await updateStepCompletionConfig(stepCode, {
-        completionMode: draft.completionMode,
-        checklistItems: draft.checklistItems,
-      })
-      if (!result.success) {
-        showToast(`Gagal: ${result.error}`)
-        ok = false
-      }
-    }
-    const cleanedSubsteps = draft.substeps
-      .map((s, i) => ({
-        key: s.key.trim(),
-        label: s.label.trim(),
-        sortOrder: i + 1,
-        kind: s.kind ?? "required",
-        checklist: (s.checklist ?? []).map((item) => item.trim()).filter(Boolean),
-      }))
-      .filter((s) => s.label)
-    const cleanedOriginal = original.substeps
-      .map((s, i) => ({
-        key: s.key.trim(),
-        label: s.label.trim(),
-        sortOrder: i + 1,
-        kind: s.kind ?? "required",
-        checklist: (s.checklist ?? []).map((item) => item.trim()).filter(Boolean),
-      }))
-      .filter((s) => s.label)
-    if (JSON.stringify(cleanedSubsteps) !== JSON.stringify(cleanedOriginal)) {
-      const result = await updateStepSubsteps(stepCode, cleanedSubsteps)
-      if (!result.success) {
-        showToast(`Gagal: ${result.error}`)
-        ok = false
-      }
-    }
-    if (!triggerConfigsEqual(draft.trigger, original.trigger)) {
-      const result = await updateStepTriggerConfig(
-        stepCode,
-        draft.trigger as unknown as Record<string, unknown>
-      )
-      if (!result.success) {
-        showToast(`Gagal: ${result.error}`)
-        ok = false
-      }
-    }
-
-    if (ok) {
-      showToast("Perubahan tersimpan")
-      router.refresh()
-    }
-    return ok
+    showToast("Perubahan tersimpan")
+    router.refresh()
+    return { success: true }
   }
 
   if (rows.length === 0) {

@@ -28,7 +28,11 @@ export type FlowStepDraft = {
 }
 
 export type FlowStepDrawerHandlers = {
-  onSave: (stepCode: string, draft: FlowStepDraft, original: FlowStepDraft) => Promise<boolean>
+  onSave: (
+    stepCode: string,
+    draft: FlowStepDraft,
+    original: FlowStepDraft
+  ) => Promise<{ success: boolean; error?: string }>
   onDuplicateSuccess?: () => void
   onResetSuccess?: () => void
 }

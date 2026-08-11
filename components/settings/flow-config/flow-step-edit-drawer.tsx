@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useRef, useState, useTransition } from "react"
+import { ChevronDown, ChevronUp, GripVertical, XIcon } from "lucide-react"
 
-import { DiscardChangesDialog } from "@/components/settings/flow-config/discard-changes-dialog"
 import { FlowStepDrawerHeader } from "@/components/settings/flow-config/flow-step-drawer-header"
 import {
   buildDraftFromRow,
@@ -31,7 +31,7 @@ import {
   SheetFooter,
   SheetHeader,
 } from "@/components/ui/sheet"
-import { DATE_FIELD_LABELS, getStep, type DateField } from "@/lib/steps"
+import { DATE_FIELD_LABELS, type DateField } from "@/lib/steps"
 import {
   COMPLETION_MODE_DESCRIPTIONS,
   COMPLETION_MODE_LABELS,
@@ -61,7 +61,7 @@ export function FlowStepEditDrawer({
 }) {
   const [draft, setDraft] = useState<FlowStepDraft | null>(null)
   const [initial, setInitial] = useState<FlowStepDraft | null>(null)
-  const [discardOpen, setDiscardOpen] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -71,21 +71,27 @@ export function FlowStepEditDrawer({
       setDraft(base)
       setInitial(base)
       setError(null)
+      setConfirmDiscard(false)
     }
   }, [open, row, displayName])
 
-  if (!row || !draft || !initial) return null
+  const hasUnsaved = Boolean(draft && initial && !draftsEqual(draft, initial))
+  const hasSubsteps = Boolean(
+    row && draft && (row.substeps.length > 0 || draft.substeps.length > 0)
+  )
 
-  const hasUnsaved = !draftsEqual(draft, initial)
-  const stepDef = getStep(row.code)
-  const hasSubsteps = row.substeps.length > 0 || draft.substeps.length > 0
+  function forceClose() {
+    setConfirmDiscard(false)
+    setError(null)
+    onOpenChange(false)
+  }
 
   function requestClose() {
-    if (hasUnsaved) {
-      setDiscardOpen(true)
+    if (hasUnsaved && !confirmDiscard) {
+      setConfirmDiscard(true)
       return
     }
-    onOpenChange(false)
+    forceClose()
   }
 
   function handleOpenChange(next: boolean) {
@@ -96,37 +102,50 @@ export function FlowStepEditDrawer({
     onOpenChange(true)
   }
 
-  function handleCancel() {
-    if (hasUnsaved) {
-      setDiscardOpen(true)
-      return
-    }
-    onOpenChange(false)
-  }
-
   function handleSave() {
-    if (!draft) return
+    if (!draft || !initial || !row) return
     setError(null)
     startTransition(async () => {
-      const ok = await handlers.onSave(row!.code, draft, initial!)
-      if (ok) {
+      const result = await handlers.onSave(row.code, draft, initial)
+      if (result.success) {
         onSaved?.()
+        setConfirmDiscard(false)
         onOpenChange(false)
       } else {
-        setError("Gagal menyimpan. Periksa kembali konfigurasi.")
+        setError(
+          result.error?.trim() || "Gagal menyimpan. Periksa kembali konfigurasi."
+        )
       }
     })
   }
 
   return (
-    <>
-      <Sheet open={open} onOpenChange={handleOpenChange}>
-        <SheetContent
-          className={cn(
-            "gap-0 border-l-4 border-l-primary/40 bg-background p-0 sm:max-w-lg"
-          )}
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetContent
+        showCloseButton={false}
+        className={cn(
+          "gap-0 border-l-4 border-l-primary/40 bg-background p-0 sm:max-w-lg"
+        )}
+        onEscapeKeyDown={(event) => {
+          event.preventDefault()
+          requestClose()
+        }}
+        onInteractOutside={(event) => {
+          event.preventDefault()
+          requestClose()
+        }}
+      >
+        <button
+          type="button"
+          onClick={requestClose}
+          className="absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-none"
+          aria-label="Tutup"
         >
-          <SheetHeader className="shrink-0 border-b bg-background">
+          <XIcon className="size-4" />
+        </button>
+        {row && draft && initial ? (
+          <>
+        <SheetHeader className="shrink-0 border-b bg-background">
             <FlowStepDrawerHeader
               row={row}
               displayName={displayName}
@@ -389,26 +408,46 @@ export function FlowStepEditDrawer({
             )}
           </SheetBody>
 
-          <SheetFooter className="shrink-0 flex-row justify-end gap-2 border-t bg-background">
-            <Button type="button" variant="outline" onClick={handleCancel} disabled={isPending}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={handleSave} disabled={isPending || !hasUnsaved}>
-              {isPending ? "Saving…" : "Save"}
-            </Button>
+          <SheetFooter className="shrink-0 flex-col gap-2 border-t bg-background sm:flex-col">
+            {confirmDiscard && (
+              <p className="w-full text-sm text-muted-foreground">
+                Ada perubahan yang belum disimpan. Buang dan tutup panel?
+              </p>
+            )}
+            <div className="flex w-full justify-end gap-2">
+              {confirmDiscard ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setConfirmDiscard(false)}
+                  >
+                    Lanjut edit
+                  </Button>
+                  <Button type="button" variant="destructive" onClick={forceClose}>
+                    Buang & tutup
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button type="button" variant="outline" onClick={requestClose}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={isPending || !hasUnsaved}
+                  >
+                    {isPending ? "Saving…" : "Save"}
+                  </Button>
+                </>
+              )}
+            </div>
           </SheetFooter>
+          </>
+        ) : null}
         </SheetContent>
       </Sheet>
-
-      <DiscardChangesDialog
-        open={discardOpen}
-        onOpenChange={setDiscardOpen}
-        onDiscard={() => {
-          setDraft(initial)
-          onOpenChange(false)
-        }}
-      />
-    </>
   )
 }
 
@@ -502,12 +541,107 @@ function ChecklistEditor({
   onChange: (items: string[]) => void
 }) {
   const [newItem, setNewItem] = useState("")
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [overIndex, setOverIndex] = useState<number | null>(null)
+  const gripArmedRef = useRef(false)
+
+  function moveItem(from: number, to: number) {
+    if (from === to || from < 0 || to < 0 || from >= items.length || to >= items.length) {
+      return
+    }
+    const next = [...items]
+    const [moved] = next.splice(from, 1)
+    if (moved == null) return
+    next.splice(to, 0, moved)
+    onChange(next)
+  }
 
   return (
     <div className="mt-2 flex flex-col gap-2">
+      {items.length > 1 && (
+        <p className="text-[11px] text-muted-foreground">
+          Drag ikon garis untuk mengubah urutan.
+        </p>
+      )}
       {items.map((item, index) => (
-        <div key={`${item}-${index}`} className="flex items-center justify-between text-sm">
-          <span>{item}</span>
+        <div
+          key={`${item}-${index}`}
+          draggable={!disabled}
+          onDragStart={(e) => {
+            if (!gripArmedRef.current) {
+              e.preventDefault()
+              return
+            }
+            e.dataTransfer.setData("text/plain", String(index))
+            e.dataTransfer.effectAllowed = "move"
+            setDragIndex(index)
+          }}
+          onDragOver={(e) => {
+            e.preventDefault()
+            e.dataTransfer.dropEffect = "move"
+            if (overIndex !== index) setOverIndex(index)
+          }}
+          onDrop={(e) => {
+            e.preventDefault()
+            const from = Number(e.dataTransfer.getData("text/plain"))
+            if (Number.isInteger(from)) moveItem(from, index)
+            setDragIndex(null)
+            setOverIndex(null)
+            gripArmedRef.current = false
+          }}
+          onDragEnd={() => {
+            setDragIndex(null)
+            setOverIndex(null)
+            gripArmedRef.current = false
+          }}
+          className={cn(
+            "flex items-center gap-1 rounded-md border bg-background px-1.5 py-1 text-sm",
+            dragIndex === index && "opacity-50",
+            overIndex === index && dragIndex != null && dragIndex !== index && "border-primary"
+          )}
+        >
+          <button
+            type="button"
+            className={cn(
+              "inline-flex shrink-0 rounded p-0.5 text-muted-foreground",
+              disabled ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing touch-none"
+            )}
+            disabled={disabled}
+            aria-label="Geser urutan"
+            onPointerDown={() => {
+              gripArmedRef.current = !disabled
+            }}
+            onPointerUp={() => {
+              gripArmedRef.current = false
+            }}
+          >
+            <GripVertical className="size-3.5" aria-hidden />
+          </button>
+          <span className="min-w-0 flex-1">{item}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 px-0"
+            disabled={disabled || index === 0}
+            onClick={() => moveItem(index, index - 1)}
+            onPointerDown={(e) => e.stopPropagation()}
+            aria-label="Naikkan"
+          >
+            <ChevronUp className="size-3.5" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 px-0"
+            disabled={disabled || index === items.length - 1}
+            onClick={() => moveItem(index, index + 1)}
+            onPointerDown={(e) => e.stopPropagation()}
+            aria-label="Turunkan"
+          >
+            <ChevronDown className="size-3.5" />
+          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -515,6 +649,7 @@ function ChecklistEditor({
             className="h-7 px-2"
             disabled={disabled}
             onClick={() => onChange(items.filter((_, i) => i !== index))}
+            onPointerDown={(e) => e.stopPropagation()}
           >
             Hapus
           </Button>

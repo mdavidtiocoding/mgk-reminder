@@ -47,6 +47,17 @@ async function fetchStepDefinitionRows(
     return (withNoteRoute.data ?? []) as StepDefRow[]
   }
 
+  const withOutcome = await supabase
+    .from("step_definitions")
+    .select(
+      "code, name, division, stage, sort_order, prerequisites, checklist_items, completion_mode, substeps, trigger_config, bast_choice, has_outcome, outcome_reschedule_field"
+    )
+    .order("sort_order")
+
+  if (!withOutcome.error) {
+    return (withOutcome.data ?? []) as StepDefRow[]
+  }
+
   const fullQuery = await supabase
     .from("step_definitions")
     .select(

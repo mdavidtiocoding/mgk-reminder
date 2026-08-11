@@ -138,11 +138,11 @@ export function DemoTaskPreview({
             const result = await saveFlowStepDraft(stepCode, draft, original)
             if (!result.success) {
               setToast(`Gagal: ${result.error}`)
-              return false
+              return { success: false, error: result.error }
             }
             setToast("Konfigurasi tersimpan — preview diperbarui.")
             router.refresh()
-            return true
+            return { success: true }
           },
         }}
       />

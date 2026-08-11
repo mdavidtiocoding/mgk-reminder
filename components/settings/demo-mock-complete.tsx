@@ -270,7 +270,7 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
   const stepDef = getStep(row.code)
   const checklist = row.checklistItems
   const completionMode = row.completionMode
-  const hasOutcome = row.hasOutcome || stepDef?.hasOutcome === true
+  const hasOutcome = row.hasOutcome === true
   const dateInputs = stepDef?.dateInputs ?? []
   const bastChoice = row.bastChoice || stepDef?.bastChoice === true
   const noteRouteTargets = resolveNoteRouteTargets(row.noteRoute, [
