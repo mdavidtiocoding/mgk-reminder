@@ -16,10 +16,10 @@ export const COMPLETION_MODE_LABELS: Record<StepCompletionMode, string> = {
 
 export const COMPLETION_MODE_DESCRIPTIONS: Record<StepCompletionMode, string> = {
   normal: "Tombol Tandai Selesai — catatan opsional.",
-  checklist: "Setiap item checklist wajib dicentang atau diberi catatan.",
-  keterangan: "Wajib isi keterangan/catatan sebelum selesai.",
+  checklist: "Semua item wajib dicentang. Tidak ada kolom catatan.",
+  keterangan: "Wajib isi keterangan umum sebelum selesai.",
   checklist_keterangan:
-    "Setiap item checklist wajib dicentang atau diberi catatan, plus keterangan umum.",
+    "Centang item yang OK. Yang tidak dicentang wajib isi keterangan.",
 }
 
 export const COMPLETION_MODE_BADGES: Record<StepCompletionMode, string> = {
@@ -44,7 +44,20 @@ export function requiresChecklist(mode: StepCompletionMode): boolean {
 }
 
 export function requiresKeterangan(mode: StepCompletionMode): boolean {
-  return mode === "keterangan" || mode === "checklist_keterangan"
+  return mode === "keterangan"
+}
+
+/** Standalone keterangan box only when there is no checklist on screen. */
+export function showsStandaloneKeterangan(
+  mode: StepCompletionMode,
+  hasChecklist: boolean
+): boolean {
+  return requiresKeterangan(mode) && !hasChecklist
+}
+
+/** Per-item note when an item is left unchecked (checklist + keterangan). */
+export function allowsChecklistItemNotes(mode: StepCompletionMode): boolean {
+  return mode === "checklist_keterangan"
 }
 
 /** Infer mode from legacy checklist_items when completion_mode column missing. */

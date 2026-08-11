@@ -3,6 +3,8 @@
 import {
   updateStepBastChoice,
   updateStepCompletionConfig,
+  updateStepNoteRouteConfig,
+  updateStepOutcomeConfig,
   updateStepPrerequisites,
   updateStepSubsteps,
   updateStepTriggerConfig,
@@ -10,6 +12,7 @@ import {
 } from "@/app/actions/flow-config"
 import { updateStepDefinitionName } from "@/app/actions/settings"
 import type { FlowStepDraft } from "@/components/settings/flow-config/flow-step-drawer-types"
+import { noteRouteConfigsEqual } from "@/lib/steps/note-route-config"
 import { triggerConfigsEqual } from "@/lib/steps/trigger-config"
 
 export async function saveFlowStepDraft(
@@ -79,6 +82,22 @@ export async function saveFlowStepDraft(
 
   if (draft.bastChoice !== original.bastChoice) {
     const result = await updateStepBastChoice(stepCode, draft.bastChoice)
+    if (!result.success) return result
+  }
+
+  if (!noteRouteConfigsEqual(draft.noteRoute, original.noteRoute)) {
+    const result = await updateStepNoteRouteConfig(stepCode, draft.noteRoute)
+    if (!result.success) return result
+  }
+
+  if (
+    draft.hasOutcome !== original.hasOutcome ||
+    draft.outcomeRescheduleField !== original.outcomeRescheduleField
+  ) {
+    const result = await updateStepOutcomeConfig(stepCode, {
+      hasOutcome: draft.hasOutcome,
+      outcomeRescheduleField: draft.outcomeRescheduleField,
+    })
     if (!result.success) return result
   }
 

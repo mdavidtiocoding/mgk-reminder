@@ -6,6 +6,11 @@ import {
   inferCompletionMode,
 } from "@/lib/steps/completion-mode"
 import { parseSubsteps, type SubstepDefinition } from "@/lib/steps/substeps"
+import {
+  isNoteRouteEnabled,
+  parseNoteRouteConfig,
+  type NoteRouteConfig,
+} from "@/lib/steps/note-route-config"
 import { parseTriggerConfig } from "@/lib/steps/trigger-config"
 
 export type RuntimeStep = StepDefinition & {
@@ -23,6 +28,7 @@ type StepDefinitionRow = {
   has_outcome?: boolean | null
   outcome_reschedule_field?: string | null
   bast_choice?: boolean | null
+  note_route_config?: unknown
 }
 
 const DATE_FIELDS = new Set<string>([
@@ -43,11 +49,23 @@ export function mergeRuntimeSteps(rows: StepDefinitionRow[]): RuntimeStep[] {
       row?.has_outcome != null ? row.has_outcome : step.hasOutcome
     const rescheduleRaw = row?.outcome_reschedule_field
     const outcomeRescheduleField =
-      typeof rescheduleRaw === "string" && DATE_FIELDS.has(rescheduleRaw)
-        ? (rescheduleRaw as DateField)
-        : step.outcomeRescheduleField
+      row?.has_outcome != null
+        ? typeof rescheduleRaw === "string" && DATE_FIELDS.has(rescheduleRaw)
+          ? (rescheduleRaw as DateField)
+          : undefined
+        : typeof rescheduleRaw === "string" && DATE_FIELDS.has(rescheduleRaw)
+          ? (rescheduleRaw as DateField)
+          : step.outcomeRescheduleField
     const bastChoice =
       row?.bast_choice != null ? row.bast_choice : step.bastChoice
+    const noteRouteFromRow =
+      row?.note_route_config !== undefined
+        ? parseNoteRouteConfig(row.note_route_config)
+        : null
+    const noteRoute: NoteRouteConfig | undefined = noteRouteFromRow
+      ? noteRouteFromRow
+      : step.noteRoute
+    const noteRouteValue = isNoteRouteEnabled(noteRoute) ? noteRoute : undefined
 
     return {
       ...step,
@@ -62,6 +80,7 @@ export function mergeRuntimeSteps(rows: StepDefinitionRow[]): RuntimeStep[] {
       hasOutcome: hasOutcome || undefined,
       outcomeRescheduleField,
       bastChoice: bastChoice || undefined,
+      noteRoute: noteRouteValue,
       substeps: parseSubsteps(row?.substeps),
     }
   })
@@ -69,6 +88,16 @@ export function mergeRuntimeSteps(rows: StepDefinitionRow[]): RuntimeStep[] {
 
 export const loadRuntimeSteps = cache(
   async (supabase: SupabaseClient): Promise<RuntimeStep[]> => {
+    const withNoteRoute = await supabase
+      .from("step_definitions")
+      .select(
+        "code, name, prerequisites, checklist_items, completion_mode, substeps, trigger_config, has_outcome, outcome_reschedule_field, bast_choice, note_route_config"
+      )
+
+    if (!withNoteRoute.error) {
+      return mergeRuntimeSteps((withNoteRoute.data ?? []) as StepDefinitionRow[])
+    }
+
     const withTrigger = await supabase
       .from("step_definitions")
       .select(

@@ -1,8 +1,12 @@
 import type { FlowConfigRow } from "@/components/settings/flow-config-table"
 import type { StepCompletionMode } from "@/lib/steps/completion-mode"
-import type { StepTrigger } from "@/lib/steps"
+import type { DateField, StepTrigger } from "@/lib/steps"
 import { getStep } from "@/lib/steps"
 import { triggerConfigsEqual } from "@/lib/steps/trigger-config"
+import {
+  noteRouteConfigsEqual,
+  type NoteRouteConfig,
+} from "@/lib/steps/note-route-config"
 import type { SubstepDefinition } from "@/lib/steps/substeps"
 
 export type FlowPageMode = "view" | "edit"
@@ -18,6 +22,9 @@ export type FlowStepDraft = {
   substeps: SubstepDefinition[]
   trigger: StepTrigger
   bastChoice: boolean
+  noteRoute: NoteRouteConfig
+  hasOutcome: boolean
+  outcomeRescheduleField: DateField | null
 }
 
 export type FlowStepDrawerHandlers = {
@@ -40,6 +47,15 @@ export function buildDraftFromRow(row: FlowConfigRow, displayName: string): Flow
     })),
     trigger: row.trigger ?? stepDef?.trigger ?? { type: "immediate" },
     bastChoice: row.bastChoice ?? stepDef?.bastChoice ?? false,
+    hasOutcome: row.hasOutcome ?? stepDef?.hasOutcome ?? false,
+    outcomeRescheduleField:
+      row.outcomeRescheduleField ?? stepDef?.outcomeRescheduleField ?? null,
+    noteRoute: {
+      enabled: row.noteRoute?.enabled ?? stepDef?.noteRoute?.enabled ?? false,
+      targets: [
+        ...(row.noteRoute?.targets ?? stepDef?.noteRoute?.targets ?? []),
+      ],
+    },
   }
 }
 
@@ -52,7 +68,10 @@ export function draftsEqual(a: FlowStepDraft, b: FlowStepDraft): boolean {
     arraysEqual(a.checklistItems, b.checklistItems) &&
     substepsEqual(a.substeps, b.substeps) &&
     triggerConfigsEqual(a.trigger, b.trigger) &&
-    a.bastChoice === b.bastChoice
+    a.bastChoice === b.bastChoice &&
+    a.hasOutcome === b.hasOutcome &&
+    a.outcomeRescheduleField === b.outcomeRescheduleField &&
+    noteRouteConfigsEqual(a.noteRoute, b.noteRoute)
   )
 }
 

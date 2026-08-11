@@ -1,5 +1,6 @@
 import Link from "next/link"
 
+import { IncomingStepNotes } from "@/components/project/incoming-step-notes"
 import { MarkDoneDialog } from "@/components/project/mark-done-dialog"
 import { StepChecklistCompletion } from "@/components/project/step-checklist-completion"
 import { StepRescheduleNotice } from "@/components/project/step-reschedule-notice"
@@ -30,6 +31,7 @@ export function TaskCard({ task }: TaskCardProps) {
     checklist: task.checklist,
     hasOutcome: task.hasOutcome,
     dateInputs: task.dateInputs,
+    noteRoute: (task.noteRouteTargets?.length ?? 0) > 0,
   })
 
   return (
@@ -58,6 +60,9 @@ export function TaskCard({ task }: TaskCardProps) {
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <p className="text-sm leading-snug">{task.stepName}</p>
+        {(task.incomingNotes?.length ?? 0) > 0 && (
+          <IncomingStepNotes notes={task.incomingNotes ?? []} compact />
+        )}
         {task.lastRescheduleDate && (
           <StepRescheduleNotice
             rescheduleDate={task.lastRescheduleDate}
@@ -92,6 +97,7 @@ export function TaskCard({ task }: TaskCardProps) {
               hasOutcome={task.hasOutcome}
               outcomeRescheduleField={task.outcomeRescheduleField}
               bastChoice={task.bastChoice}
+              noteRouteTargets={task.noteRouteTargets}
             />
           )}
           <Button variant={hasSubsteps ? "default" : "outline"} size="sm" asChild>

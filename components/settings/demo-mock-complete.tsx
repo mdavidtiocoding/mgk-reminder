@@ -8,6 +8,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { FlowConfigRow } from "@/components/settings/flow-config-table"
 import { todayDateKeyWib } from "@/lib/format"
@@ -18,9 +25,11 @@ import {
 } from "@/lib/steps"
 import { isChecklistItemComplete } from "@/lib/steps/checklist-response"
 import {
+  allowsChecklistItemNotes,
   requiresChecklist,
-  requiresKeterangan,
+  showsStandaloneKeterangan,
 } from "@/lib/steps/completion-mode"
+import { isNoteRouteEnabled, resolveNoteRouteTargets } from "@/lib/steps/note-route-config"
 import {
   areRequiredSubstepsComplete,
   canCompleteSubstepNow,
@@ -261,15 +270,27 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
   const stepDef = getStep(row.code)
   const checklist = row.checklistItems
   const completionMode = row.completionMode
-  const hasOutcome = stepDef?.hasOutcome === true
+  const hasOutcome = row.hasOutcome || stepDef?.hasOutcome === true
   const dateInputs = stepDef?.dateInputs ?? []
   const bastChoice = row.bastChoice || stepDef?.bastChoice === true
-  const outcomeRescheduleField: DateField =
-    stepDef?.outcomeRescheduleField ?? "ex_work_date"
+  const noteRouteTargets = resolveNoteRouteTargets(row.noteRoute, [
+    { code: row.code, name: row.name },
+    ...(row.noteRoute?.targets ?? []).map((code) => ({
+      code,
+      name: getStep(code)?.name ?? code,
+    })),
+  ])
+  const showNoteRoute = isNoteRouteEnabled(row.noteRoute)
+  const outcomeRescheduleField: DateField | undefined =
+    row.outcomeRescheduleField ?? stepDef?.outcomeRescheduleField
 
   const showChecklist =
     requiresChecklist(completionMode) && checklist.length > 0
-  const noteRequired = requiresKeterangan(completionMode)
+  const itemNotesAllowed = allowsChecklistItemNotes(completionMode)
+  const noteRequired = showsStandaloneKeterangan(
+    completionMode,
+    showChecklist
+  )
 
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
   const [checklistItemNotes, setChecklistItemNotes] = useState<
@@ -281,6 +302,13 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
   const [rescheduleDate, setRescheduleDate] = useState("")
   const [bast2Required, setBast2Required] = useState<boolean | null>(null)
   const [bastEstimate, setBastEstimate] = useState("")
+  const [noteRoutePresence, setNoteRoutePresence] = useState<"ada" | "tidak" | "">(
+    ""
+  )
+  const [noteRouteTo, setNoteRouteTo] = useState(
+    noteRouteTargets.length === 1 ? noteRouteTargets[0].code : ""
+  )
+  const [noteRouteMessage, setNoteRouteMessage] = useState("")
   const [passed, setPassed] = useState(false)
 
   const isReschedule = hasOutcome && outcome === "reschedule"
@@ -296,6 +324,9 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
     setRescheduleDate("")
     setBast2Required(null)
     setBastEstimate("")
+    setNoteRoutePresence("")
+    setNoteRouteTo(noteRouteTargets.length === 1 ? noteRouteTargets[0].code : "")
+    setNoteRouteMessage("")
     setPassed(false)
   }
 
@@ -318,23 +349,37 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
 
   const blockers = useMemo(() => {
     const list: string[] = []
-    if (hasOutcome && !outcome) list.push("Pilih hasil OK / Reschedule")
-    if (isReschedule && !rescheduleDate) list.push("Isi tanggal reschedule")
+    if (hasOutcome && !outcome) list.push("Pilih Selesai atau Belum")
+    if (isReschedule && !rescheduleDate) list.push("Pilih tanggal berikutnya")
     if (bastChoice && !isReschedule) {
       if (bast2Required === null) list.push("Pilih BAST 1 saja atau BAST 1+2")
       if (!bastEstimate.trim()) list.push("Isi estimasi BAST")
     }
+    if (showNoteRoute && !isReschedule) {
+      if (!noteRoutePresence) list.push("Pilih Ada atau Tidak")
+      if (noteRoutePresence === "ada") {
+        if (!noteRouteMessage.trim()) list.push("Isi catatan untuk step berikutnya")
+        if (!noteRouteTo) list.push("Pilih step tujuan")
+      }
+    }
     if (showChecklist && !isReschedule) {
       const incomplete = checklist.filter(
         (item) =>
-          !isChecklistItemComplete({
-            item,
-            checked: checkedItems.has(item),
-            note: checklistItemNotes[item],
-          })
+          !isChecklistItemComplete(
+            {
+              item,
+              checked: checkedItems.has(item),
+              note: checklistItemNotes[item],
+            },
+            { allowItemNotes: itemNotesAllowed }
+          )
       )
       if (incomplete.length > 0) {
-        list.push(`${incomplete.length} item checklist belum diisi`)
+        list.push(
+          itemNotesAllowed
+            ? `${incomplete.length} item belum dicentang / isi keterangan`
+            : `${incomplete.length} item belum dicentang`
+        )
       }
     }
     if (showDateInputs) {
@@ -344,7 +389,7 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
       }
     }
     if (noteRequired && !isReschedule && !note.trim()) {
-      list.push("Keterangan wajib diisi")
+      list.push("Keterangan umum wajib diisi")
     }
     return list
   }, [
@@ -355,6 +400,10 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
     bastChoice,
     bast2Required,
     bastEstimate,
+    showNoteRoute,
+    noteRoutePresence,
+    noteRouteMessage,
+    noteRouteTo,
     showChecklist,
     checklist,
     checkedItems,
@@ -364,11 +413,17 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
     dateValues,
     noteRequired,
     note,
+    itemNotesAllowed,
   ])
 
   const canSubmit = blockers.length === 0
   const hasInteractive =
-    showChecklist || hasOutcome || dateInputs.length > 0 || bastChoice || noteRequired
+    showChecklist ||
+    hasOutcome ||
+    dateInputs.length > 0 ||
+    bastChoice ||
+    noteRequired ||
+    showNoteRoute
 
   if (!hasInteractive) {
     return (
@@ -383,9 +438,13 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
     <div className="flex flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
         <p className="text-[11px] leading-snug text-muted-foreground">
-          <span className="font-medium text-foreground">Checklist</span> = daftar
-          cek saat mark done sekali. Semua item wajib dicentang atau diberi
-          catatan, lalu konfirmasi selesai.
+          {itemNotesAllowed
+            ? "Checklist + keterangan: centang yang OK. Yang tidak dicentang wajib isi keterangan."
+            : showChecklist
+              ? "Checklist: semua item wajib dicentang, tanpa kolom catatan."
+              : noteRequired
+                ? "Keterangan: wajib isi keterangan umum sebelum selesai."
+                : "Form mark done."}
         </p>
         <Button
           type="button"
@@ -401,7 +460,7 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
 
       {hasOutcome && (
         <div className="flex flex-col gap-2">
-          <Label className="text-xs">Hasil</Label>
+          <Label className="text-xs">Selesai / Belum</Label>
           <div className="flex gap-2">
             <Button
               type="button"
@@ -412,7 +471,7 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
                 setPassed(false)
               }}
             >
-              OK
+              Selesai
             </Button>
             <Button
               type="button"
@@ -423,13 +482,16 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
                 setPassed(false)
               }}
             >
-              Perlu Reschedule
+              Belum
             </Button>
           </div>
           {outcome === "reschedule" && (
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs">
-                Tanggal baru — {DATE_FIELD_LABELS[outcomeRescheduleField]}
+                Tanggal berikutnya
+                {outcomeRescheduleField
+                  ? ` — juga geser ${DATE_FIELD_LABELS[outcomeRescheduleField]}`
+                  : ""}
               </Label>
               <Input
                 type="date"
@@ -441,6 +503,68 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
                 }}
               />
             </div>
+          )}
+        </div>
+      )}
+
+      {showNoteRoute && !isReschedule && (
+        <div className="flex flex-col gap-2 rounded-md border bg-background p-2.5">
+          <Label className="text-xs">Ada / Tidak</Label>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={noteRoutePresence === "ada" ? "default" : "outline"}
+              onClick={() => {
+                setNoteRoutePresence("ada")
+                setPassed(false)
+              }}
+            >
+              Ada
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={noteRoutePresence === "tidak" ? "default" : "outline"}
+              onClick={() => {
+                setNoteRoutePresence("tidak")
+                setPassed(false)
+              }}
+            >
+              Tidak
+            </Button>
+          </div>
+          {noteRoutePresence === "ada" && (
+            <>
+              <Textarea
+                placeholder="Catatan untuk step berikutnya (wajib)"
+                value={noteRouteMessage}
+                onChange={(e) => {
+                  setNoteRouteMessage(e.target.value)
+                  setPassed(false)
+                }}
+                rows={2}
+                className="text-sm"
+              />
+              <Select
+                value={noteRouteTo || undefined}
+                onValueChange={(value) => {
+                  setNoteRouteTo(value)
+                  setPassed(false)
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih step tujuan" />
+                </SelectTrigger>
+                <SelectContent>
+                  {noteRouteTargets.map((target) => (
+                    <SelectItem key={target.code} value={target.code}>
+                      {target.code} — {target.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
           )}
         </div>
       )}
@@ -494,6 +618,7 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
             setPassed(false)
           }}
           compact
+          allowItemNotes={itemNotesAllowed}
         />
       )}
 

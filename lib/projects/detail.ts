@@ -21,7 +21,13 @@ import {
   getCompletedSubstepKeys,
   getPendingReminderSubsteps,
 } from "@/lib/steps/substeps"
+import { loadIncomingNotesByStep } from "@/lib/projects/incoming-notes"
 import { loadSubstepCompletionsForProject } from "@/lib/projects/substep-data"
+import {
+  resolveNoteRouteTargets,
+  type IncomingStepNote,
+  type NoteRouteTarget,
+} from "@/lib/steps/note-route-config"
 import { indexLatestReschedules, isRescheduleChannel } from "@/lib/projects/reschedule-log"
 
 type CompletionRow = {
@@ -89,6 +95,8 @@ export type StepTimelineItem = {
   hasOutcome?: boolean
   outcomeRescheduleField?: import("@/lib/steps").DateField
   bastChoice?: boolean
+  noteRouteTargets?: NoteRouteTarget[]
+  incomingNotes?: IncomingStepNote[]
   substeps: SubstepDefinition[]
   substepCompletions: SubstepCompletion[]
   canComplete: boolean
@@ -173,6 +181,12 @@ export async function getProjectDetail(
 
   if (error || !data) return null
 
+  const incomingByStep = await loadIncomingNotesByStep(
+    supabase,
+    projectId,
+    runtimeSteps
+  )
+
   const project = data as ProjectDetailRow
 
   const completionByCode = new Map<string, CompletionRow>()
@@ -253,6 +267,8 @@ export async function getProjectDetail(
       hasOutcome: step.hasOutcome,
       outcomeRescheduleField: step.outcomeRescheduleField,
       bastChoice: step.bastChoice,
+      noteRouteTargets: resolveNoteRouteTargets(step.noteRoute, runtimeSteps),
+      incomingNotes: incomingByStep.get(step.code) ?? [],
       substeps: step.substeps,
       substepCompletions: stepSubstepCompletions,
       canComplete: computed.status === "active" && userCanCompleteStep,

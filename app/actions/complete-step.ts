@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 
-import { clearCalendarRemindersForStep, createStepUnlockCalendarEvents, resyncCalendarEventsForDateField } from "@/lib/google/calendar"
+import { clearCalendarRemindersForStep, createFollowUpCalendarEvents, createStepUnlockCalendarEvents, resyncCalendarEventsForDateField } from "@/lib/google/calendar"
 import { dateToDateKeyWib } from "@/lib/format"
 import { resolveActorName, writeAuditLog } from "@/lib/audit/log"
 import { notifyDivisionForStep } from "@/lib/notifications/send"
@@ -20,11 +20,16 @@ import {
   type ChecklistItemResponse,
 } from "@/lib/steps/checklist-response"
 import {
+  allowsChecklistItemNotes,
   requiresChecklist,
   requiresKeterangan,
 } from "@/lib/steps/completion-mode"
 import type { DateField } from "@/lib/steps"
 import { BAST2_STEP_CODES } from "@/lib/steps"
+import {
+  formatNoteRouteLine,
+  isNoteRouteEnabled,
+} from "@/lib/steps/note-route-config"
 import { buildRescheduleChannel } from "@/lib/projects/reschedule-log"
 import {
   resolveUserDivisions,
@@ -50,6 +55,10 @@ export type CompleteStepOptions = {
   bast2Required?: boolean
   /** Estimasi BAST (wajib jika step.bastChoice) */
   bastEstimate?: string
+  /** Ada / tidak — required when step.noteRoute is enabled */
+  noteRoutePresence?: "ada" | "tidak"
+  noteRouteTo?: string
+  noteRouteMessage?: string
 }
 
 export async function completeStep(
@@ -153,7 +162,9 @@ export async function completeStep(
       options.checkedItems ?? [],
       options.checklistItemNotes ?? {}
     )
-    const checklistError = validateChecklistResponses(items, responses)
+    const checklistError = validateChecklistResponses(items, responses, {
+      allowItemNotes: allowsChecklistItemNotes(completionMode),
+    })
     if (checklistError) {
       return { success: false as const, error: checklistError }
     }
@@ -191,13 +202,16 @@ export async function completeStep(
 
     if (options.outcome === "reschedule") {
       if (!options.rescheduleDate || !DATE_PATTERN.test(options.rescheduleDate)) {
-        return { success: false, error: "Tanggal reschedule tidak valid." }
+        return { success: false, error: "Tanggal berikutnya tidak valid." }
       }
-      const rescheduleField =
-        step.outcomeRescheduleField ?? ("ex_work_date" as DateField)
-      projectUpdates[rescheduleField] = options.rescheduleDate
+      const today = dateToDateKeyWib(new Date())
+      if (options.rescheduleDate < today) {
+        return { success: false, error: "Tanggal berikutnya tidak boleh di masa lalu." }
+      }
 
-      if (Object.keys(projectUpdates).length > 0) {
+      const rescheduleField = step.outcomeRescheduleField
+      if (rescheduleField) {
+        projectUpdates[rescheduleField] = options.rescheduleDate
         const { error: updateError } = await supabase
           .from("projects")
           .update(projectUpdates)
@@ -206,6 +220,13 @@ export async function completeStep(
         if (updateError) {
           return { success: false, error: updateError.message }
         }
+
+        await resyncCalendarEventsForDateField({
+          projectId,
+          dateField: rescheduleField,
+          actingUserId: user.id,
+          newDateValue: options.rescheduleDate,
+        })
       }
 
       const service = createServiceClient()
@@ -217,11 +238,33 @@ export async function completeStep(
         })
       }
 
-      await resyncCalendarEventsForDateField({
+      await supabase.from("followup_schedule").upsert(
+        {
+          project_id: projectId,
+          step_code: stepCode,
+          scheduled_date: options.rescheduleDate,
+          scheduled_time: "09:00:00",
+          note: options.note?.trim() || "Step reschedule (belum selesai)",
+          created_by: user.id,
+          notified_at: null,
+        },
+        { onConflict: "project_id,step_code" }
+      )
+
+      await clearCalendarRemindersForStep({ projectId, stepCode })
+      await createStepUnlockCalendarEvents({
         projectId,
-        dateField: rescheduleField,
+        stepCode,
         actingUserId: user.id,
-        newDateValue: options.rescheduleDate,
+        eventDate: options.rescheduleDate,
+      })
+      await createFollowUpCalendarEvents({
+        projectId,
+        stepCode,
+        scheduledDate: options.rescheduleDate,
+        scheduledTime: "09:00:00",
+        note: options.note?.trim() || "Step reschedule (belum selesai)",
+        actingUserId: user.id,
       })
 
       revalidatePath(`/projects/${projectId}`)
@@ -243,6 +286,29 @@ export async function completeStep(
     }
     if (!options.bastEstimate?.trim()) {
       return { success: false, error: "Estimasi BAST wajib diisi." }
+    }
+  }
+
+  const noteRouteEnabled = isNoteRouteEnabled(step.noteRoute)
+  let noteRoutePresence: "ada" | "tidak" | null = null
+  let noteRouteTo: string | null = null
+  let noteRouteMessage: string | null = null
+  if (noteRouteEnabled) {
+    if (options.noteRoutePresence !== "ada" && options.noteRoutePresence !== "tidak") {
+      return { success: false, error: "Pilih Ada atau Tidak." }
+    }
+    noteRoutePresence = options.noteRoutePresence
+    if (noteRoutePresence === "ada") {
+      const to = options.noteRouteTo?.trim() ?? ""
+      const message = options.noteRouteMessage?.trim() ?? ""
+      if (!message) {
+        return { success: false, error: "Catatan wajib diisi jika pilih Ada." }
+      }
+      if (!to || !step.noteRoute?.targets.includes(to)) {
+        return { success: false, error: "Pilih step tujuan dari dropdown." }
+      }
+      noteRouteTo = to
+      noteRouteMessage = message
     }
   }
 
@@ -302,15 +368,42 @@ export async function completeStep(
     ? formatCompletionNote(checklistResponses, options.note)
     : options.note?.trim() || null
 
-  const combinedNote = [baseNote, bastNote].filter(Boolean).join("\n") || null
+  const noteRouteLine = noteRoutePresence
+    ? formatNoteRouteLine({
+        presence: noteRoutePresence,
+        toStep: noteRouteTo ?? undefined,
+        message: noteRouteMessage ?? undefined,
+      })
+    : null
 
-  const { error } = await supabase.from("step_completions").insert({
+  const combinedNote =
+    [baseNote, bastNote, noteRouteLine].filter(Boolean).join("\n\n") || null
+
+  const insertPayload: Record<string, unknown> = {
     project_id: projectId,
     step_code: stepCode,
     completed_by: user.id,
     note: combinedNote,
     outcome,
-  })
+  }
+  if (noteRoutePresence) {
+    insertPayload.note_route_presence = noteRoutePresence
+    insertPayload.note_route_to = noteRouteTo
+    insertPayload.note_route_message = noteRouteMessage
+  }
+
+  let { error } = await supabase.from("step_completions").insert(insertPayload)
+
+  if (error && noteRoutePresence) {
+    const retry = await supabase.from("step_completions").insert({
+      project_id: projectId,
+      step_code: stepCode,
+      completed_by: user.id,
+      note: combinedNote,
+      outcome,
+    })
+    error = retry.error
+  }
 
   if (error) {
     return { success: false, error: error.message }

@@ -31,7 +31,7 @@ import {
   SheetFooter,
   SheetHeader,
 } from "@/components/ui/sheet"
-import { getStep } from "@/lib/steps"
+import { DATE_FIELD_LABELS, getStep, type DateField } from "@/lib/steps"
 import {
   COMPLETION_MODE_DESCRIPTIONS,
   COMPLETION_MODE_LABELS,
@@ -180,6 +180,132 @@ export function FlowStepEditDrawer({
                 stepOptions={allStepOptions}
                 disabled={isPending}
               />
+            </EditSection>
+
+            <EditSection title="Catatan ke step berikutnya">
+              <label className="flex items-start gap-2.5 text-sm">
+                <Checkbox
+                  checked={draft.noteRoute.enabled}
+                  disabled={isPending}
+                  onCheckedChange={(checked) =>
+                    setDraft((d) => {
+                      if (!d) return d
+                      const enabled = checked === true
+                      return {
+                        ...d,
+                        noteRoute: {
+                          enabled,
+                          targets:
+                            enabled && d.noteRoute.targets.length === 0
+                              ? [...d.unlocksSteps]
+                              : d.noteRoute.targets,
+                        },
+                      }
+                    })
+                  }
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">Tanya Ada / Tidak</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Saat mark done, user pilih Ada atau Tidak. Jika Ada, wajib
+                    isi catatan dan pilih step tujuan dari dropdown di bawah.
+                  </span>
+                </span>
+              </label>
+              {draft.noteRoute.enabled && (
+                <div className="mt-3">
+                  <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
+                    Step yang muncul di dropdown
+                  </p>
+                  <StepCodesPicker
+                    stepCode={row.code}
+                    selected={draft.noteRoute.targets}
+                    allStepOptions={allStepOptions}
+                    disabled={isPending}
+                    onChange={(codes) =>
+                      setDraft(
+                        (d) =>
+                          d && {
+                            ...d,
+                            noteRoute: { ...d.noteRoute, targets: codes },
+                          }
+                      )
+                    }
+                  />
+                  {draft.noteRoute.targets.length === 0 && (
+                    <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] text-amber-800">
+                      Pilih minimal satu step tujuan.
+                    </p>
+                  )}
+                </div>
+              )}
+            </EditSection>
+
+            <EditSection title="Step reschedule">
+              <label className="flex items-start gap-2.5 text-sm">
+                <Checkbox
+                  checked={draft.hasOutcome}
+                  disabled={isPending}
+                  onCheckedChange={(checked) =>
+                    setDraft((d) => {
+                      if (!d) return d
+                      const enabled = checked === true
+                      return {
+                        ...d,
+                        hasOutcome: enabled,
+                        outcomeRescheduleField: enabled
+                          ? d.outcomeRescheduleField
+                          : null,
+                      }
+                    })
+                  }
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">Aktifkan step reschedule</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Saat mark done, tanya Selesai / Belum. Kalau Belum, pilih
+                    tanggal berikutnya. Step tetap aktif dan ditanya lagi di
+                    tanggal itu.
+                  </span>
+                </span>
+              </label>
+              {draft.hasOutcome && (
+                <div className="mt-3 flex flex-col gap-1.5">
+                  <p className="text-[11px] font-medium text-muted-foreground">
+                    Juga geser tanggal project (opsional)
+                  </p>
+                  <Select
+                    value={draft.outcomeRescheduleField ?? "none"}
+                    onValueChange={(value) =>
+                      setDraft(
+                        (d) =>
+                          d && {
+                            ...d,
+                            outcomeRescheduleField:
+                              value === "none" ? null : (value as DateField),
+                          }
+                      )
+                    }
+                    disabled={isPending}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Tidak — hanya jadwal step ini</SelectItem>
+                      {(Object.keys(DATE_FIELD_LABELS) as DateField[]).map(
+                        (field) => (
+                          <SelectItem key={field} value={field}>
+                            {DATE_FIELD_LABELS[field]}
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </EditSection>
 
             <EditSection title="BAST">

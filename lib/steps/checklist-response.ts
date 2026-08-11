@@ -4,21 +4,43 @@ export type ChecklistItemResponse = {
   note?: string
 }
 
-/** Each item must be checked OR have a non-empty note. */
-export function isChecklistItemComplete(item: ChecklistItemResponse): boolean {
+function isChoiceItem(item: string): boolean {
+  return /ya\s*\/\s*tidak/i.test(item)
+}
+
+export type ChecklistCompleteOptions = {
+  /** false = item must be checked (checklist-only). Default true = check or note. */
+  allowItemNotes?: boolean
+}
+
+/** Checklist-only: must be checked. Checklist+keterangan: checked OR a note. */
+export function isChecklistItemComplete(
+  item: ChecklistItemResponse,
+  options?: ChecklistCompleteOptions
+): boolean {
+  if (isChoiceItem(item.item)) {
+    return item.checked || Boolean(item.note?.trim())
+  }
+  if (options?.allowItemNotes === false) {
+    return item.checked
+  }
   return item.checked || Boolean(item.note?.trim())
 }
 
 export function validateChecklistResponses(
   expectedItems: string[],
-  responses: ChecklistItemResponse[]
+  responses: ChecklistItemResponse[],
+  options?: ChecklistCompleteOptions
 ): string | null {
   const byItem = new Map(responses.map((r) => [r.item, r]))
+  const allowItemNotes = options?.allowItemNotes !== false
 
   for (const item of expectedItems) {
     const response = byItem.get(item)
-    if (!response || !isChecklistItemComplete(response)) {
-      return `Setiap item checklist harus dicentang atau diberi catatan: "${item}".`
+    if (!response || !isChecklistItemComplete(response, options)) {
+      return allowItemNotes
+        ? `Setiap item checklist harus dicentang atau diberi keterangan: "${item}".`
+        : `Setiap item checklist harus dicentang: "${item}".`
     }
   }
 

@@ -508,7 +508,108 @@ export async function updateStepBastChoice(
     return {
       success: false,
       error: result.error.message.includes("bast_choice")
-        ? "Kolom bast_choice belum ada — jalankan database/add-bast-choice-config.sql"
+        ? "Kolom bast_choice belum ada - jalankan database/add-bast-choice-config.sql"
+        : result.error.message,
+    }
+  }
+  if (!result.data) {
+    return { success: false, error: "Step tidak ditemukan." }
+  }
+
+  revalidatePath("/settings/flow")
+  revalidatePath("/projects/[id]", "page")
+  revalidatePath("/")
+  revalidatePath("/tasks")
+
+  return { success: true }
+}
+
+export async function updateStepOutcomeConfig(
+  stepCode: string,
+  config: {
+    hasOutcome: boolean
+    outcomeRescheduleField: string | null
+  }
+): Promise<{ success: true } | { success: false; error: string }> {
+  const { supabase } = await requirePermission("settings_flow")
+
+  const DATE_FIELDS = new Set([
+    "ex_work_date",
+    "etd_date",
+    "eta_date",
+    "mos_date",
+  ])
+  const field =
+    config.hasOutcome &&
+    config.outcomeRescheduleField &&
+    DATE_FIELDS.has(config.outcomeRescheduleField)
+      ? config.outcomeRescheduleField
+      : null
+
+  const result = await supabase
+    .from("step_definitions")
+    .update({
+      has_outcome: config.hasOutcome,
+      outcome_reschedule_field: field,
+    })
+    .eq("code", stepCode)
+    .select("code")
+    .maybeSingle()
+
+  if (result.error) {
+    return {
+      success: false,
+      error: result.error.message.includes("has_outcome")
+        ? "Kolom has_outcome belum ada - jalankan database/add-trigger-and-bast-config.sql"
+        : result.error.message,
+    }
+  }
+  if (!result.data) {
+    return { success: false, error: "Step tidak ditemukan." }
+  }
+
+  revalidatePath("/settings/flow")
+  revalidatePath("/projects/[id]", "page")
+  revalidatePath("/")
+  revalidatePath("/tasks")
+
+  return { success: true }
+}
+
+export async function updateStepNoteRouteConfig(
+  stepCode: string,
+  config: { enabled: boolean; targets: string[] }
+): Promise<{ success: true } | { success: false; error: string }> {
+  const { supabase } = await requirePermission("settings_flow")
+
+  const targets = [...new Set(config.targets.map((code) => code.trim()).filter(Boolean))]
+  if (config.enabled && targets.length === 0) {
+    return {
+      success: false,
+      error: "Pilih minimal satu step tujuan untuk dropdown Ada/Tidak.",
+    }
+  }
+  if (targets.includes(stepCode)) {
+    return {
+      success: false,
+      error: "Step tujuan tidak boleh step yang sama.",
+    }
+  }
+
+  const payload = config.enabled ? { enabled: true, targets } : { enabled: false, targets }
+
+  const result = await supabase
+    .from("step_definitions")
+    .update({ note_route_config: payload })
+    .eq("code", stepCode)
+    .select("code")
+    .maybeSingle()
+
+  if (result.error) {
+    return {
+      success: false,
+      error: result.error.message.includes("note_route_config")
+        ? "Kolom note_route_config belum ada - jalankan database/add-note-route-config.sql"
         : result.error.message,
     }
   }

@@ -1,9 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { FlowConfigRow } from "@/components/settings/flow-config-table"
-import { STEPS, describeTrigger, type StepTrigger } from "@/lib/steps"
+import {
+  DATE_FIELD_LABELS,
+  STEPS,
+  describeTrigger,
+  type DateField,
+  type StepTrigger,
+} from "@/lib/steps"
 import { inferCompletionMode } from "@/lib/steps/completion-mode"
 import { parseSubsteps } from "@/lib/steps/substeps"
+import {
+  parseNoteRouteConfig,
+  type NoteRouteConfig,
+} from "@/lib/steps/note-route-config"
 import { parseTriggerConfig } from "@/lib/steps/trigger-config"
 
 type StepDefRow = {
@@ -18,11 +28,25 @@ type StepDefRow = {
   substeps?: unknown
   trigger_config?: unknown
   bast_choice?: boolean | null
+  note_route_config?: unknown
+  has_outcome?: boolean | null
+  outcome_reschedule_field?: string | null
 }
 
 async function fetchStepDefinitionRows(
   supabase: SupabaseClient
 ): Promise<StepDefRow[]> {
+  const withNoteRoute = await supabase
+    .from("step_definitions")
+    .select(
+      "code, name, division, stage, sort_order, prerequisites, checklist_items, completion_mode, substeps, trigger_config, bast_choice, note_route_config, has_outcome, outcome_reschedule_field"
+    )
+    .order("sort_order")
+
+  if (!withNoteRoute.error) {
+    return (withNoteRoute.data ?? []) as StepDefRow[]
+  }
+
   const fullQuery = await supabase
     .from("step_definitions")
     .select(
@@ -123,6 +147,21 @@ export async function loadFlowConfigRows(
         row.bast_choice != null
           ? row.bast_choice
           : (stepFromLib?.bastChoice ?? false)
+      const noteRoute: NoteRouteConfig =
+        row.note_route_config !== undefined
+          ? parseNoteRouteConfig(row.note_route_config)
+          : (stepFromLib?.noteRoute ?? { enabled: false, targets: [] })
+      const hasOutcome =
+        row.has_outcome != null
+          ? row.has_outcome
+          : (stepFromLib?.hasOutcome ?? false)
+      const fieldRaw = row.outcome_reschedule_field
+      const outcomeRescheduleField: DateField | null =
+        row.has_outcome != null
+          ? typeof fieldRaw === "string" && fieldRaw in DATE_FIELD_LABELS
+            ? (fieldRaw as DateField)
+            : null
+          : (stepFromLib?.outcomeRescheduleField ?? null)
 
       return {
         code: row.code,
@@ -146,6 +185,9 @@ export async function loadFlowConfigRows(
             (STEPS.find((s) => s.code === b)?.order ?? 0)
         ),
         bastChoice,
+        noteRoute,
+        hasOutcome,
+        outcomeRescheduleField,
       }
     })
 }

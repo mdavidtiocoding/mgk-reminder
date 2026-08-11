@@ -18,7 +18,13 @@ import {
   type SubstepCompletion,
   type SubstepDefinition,
 } from "@/lib/steps/substeps"
+import { loadIncomingNotesForProjects } from "@/lib/projects/incoming-notes"
 import { loadSubstepCompletionsMap } from "@/lib/projects/substep-data"
+import {
+  resolveNoteRouteTargets,
+  type IncomingStepNote,
+  type NoteRouteTarget,
+} from "@/lib/steps/note-route-config"
 import { indexLatestReschedules } from "@/lib/projects/reschedule-log"
 
 type StepCompletionRow = {
@@ -67,6 +73,8 @@ export type MyTask = {
   dateInputs?: import("@/lib/steps").DateInputField[]
   outcomeRescheduleField?: import("@/lib/steps").DateField
   bastChoice?: boolean
+  noteRouteTargets?: NoteRouteTarget[]
+  incomingNotes?: IncomingStepNote[]
   lastRescheduleDate?: string
   lastRescheduleAt?: string
 }
@@ -124,10 +132,11 @@ export async function getMyTasks(
   }
 
   const projectRows = (data ?? []) as ProjectRow[]
-  const substepMap = await loadSubstepCompletionsMap(
-    supabase,
-    projectRows.map((project) => project.id)
-  )
+  const projectIds = projectRows.map((project) => project.id)
+  const [substepMap, incomingByProject] = await Promise.all([
+    loadSubstepCompletionsMap(supabase, projectIds),
+    loadIncomingNotesForProjects(supabase, projectIds, runtimeSteps),
+  ])
 
   const tasks: MyTask[] = []
 
@@ -184,6 +193,8 @@ export async function getMyTasks(
         dateInputs: step.dateInputs,
         outcomeRescheduleField: step.outcomeRescheduleField,
         bastChoice: step.bastChoice,
+        noteRouteTargets: resolveNoteRouteTargets(step.noteRoute, runtimeSteps),
+        incomingNotes: incomingByProject.get(project.id)?.get(step.code) ?? [],
         lastRescheduleDate: reschedule?.newExWorkDate,
         lastRescheduleAt: reschedule?.rescheduledAt,
       }
@@ -243,6 +254,8 @@ export async function getMyTasks(
         dateInputs: step.dateInputs,
         outcomeRescheduleField: step.outcomeRescheduleField,
         bastChoice: step.bastChoice,
+        noteRouteTargets: resolveNoteRouteTargets(step.noteRoute, runtimeSteps),
+        incomingNotes: incomingByProject.get(project.id)?.get(step.code) ?? [],
       }
 
       if (searchQuery?.trim()) {

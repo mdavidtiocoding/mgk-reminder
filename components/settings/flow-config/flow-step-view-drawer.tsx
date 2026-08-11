@@ -123,6 +123,37 @@ export function FlowStepViewDrawer({
               )}
             </ReadOnlySection>
 
+            <ReadOnlySection title="Step reschedule">
+              {row.hasOutcome ? (
+                <div className="space-y-1">
+                  <p className="text-sm">Aktif — tanya Selesai / Belum</p>
+                  <p className="text-xs text-muted-foreground">
+                    {row.outcomeRescheduleField
+                      ? `Juga geser ${row.outcomeRescheduleField}`
+                      : "Hanya jadwal step ini, tanggal project tidak berubah"}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Tidak aktif</p>
+              )}
+            </ReadOnlySection>
+
+            <ReadOnlySection title="Catatan ke step berikutnya">
+              {row.noteRoute?.enabled ? (
+                <div className="space-y-1">
+                  <p className="text-sm">Tanya Ada / Tidak</p>
+                  <p className="text-xs text-muted-foreground">
+                    Dropdown:{" "}
+                    {row.noteRoute.targets.length > 0
+                      ? row.noteRoute.targets.join(", ")
+                      : "—"}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Tidak aktif</p>
+              )}
+            </ReadOnlySection>
+
             <ReadOnlySection title="Mode Selesai">
               {row.substeps.length > 0 ? (
                 <p className="text-sm">Sub-step (otomatis)</p>

@@ -16,7 +16,7 @@ export function StepRescheduleNotice({
         className
       )}
     >
-      Exwork reschedule: {formatDateKey(rescheduleDate)}
+      Step reschedule: {formatDateKey(rescheduleDate)}
     </p>
   )
 }

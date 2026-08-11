@@ -67,6 +67,11 @@ export type FlowConfigRow = {
   trigger?: import("@/lib/steps").StepTrigger
   /** Ask BAST 1 only vs BAST 1+2 on mark done (typically P8). */
   bastChoice: boolean
+  /** Ask Ada/Tidak and forward notes to a chosen next step. */
+  noteRoute: import("@/lib/steps/note-route-config").NoteRouteConfig
+  /** Step reschedule: ask Selesai / Belum and pick the next date. */
+  hasOutcome: boolean
+  outcomeRescheduleField: import("@/lib/steps").DateField | null
 }
 
 type AllStepOption = {
@@ -654,6 +659,16 @@ function FlowConfigTableRow({
           {row.bastChoice && (
             <span className="rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
               BAST choice
+            </span>
+          )}
+          {row.noteRoute?.enabled && (
+            <span className="rounded-md border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-900">
+              Ada/Tidak
+            </span>
+          )}
+          {row.hasOutcome && (
+            <span className="rounded-md border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-900">
+              Reschedule
             </span>
           )}
         </span>

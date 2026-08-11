@@ -65,6 +65,11 @@ export type StepDefinition = {
    * If user chooses "BAST 1 only", later BAST 2 steps are auto-skipped.
    */
   bastChoice?: boolean
+  /**
+   * When completing this step, ask Ada/Tidak. If Ada, require notes and
+   * pick a target step to forward those notes to.
+   */
+  noteRoute?: import("@/lib/steps/note-route-config").NoteRouteConfig
   trigger: StepTrigger
 }
 

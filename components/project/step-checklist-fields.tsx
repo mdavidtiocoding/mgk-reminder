@@ -12,6 +12,8 @@ type StepChecklistFieldsProps = {
   onToggleItem: (item: string) => void
   onItemNoteChange: (item: string, value: string) => void
   compact?: boolean
+  /** false = checkboxes only, no per-item note. Default true. */
+  allowItemNotes?: boolean
 }
 
 function isChoiceItem(item: string): boolean {
@@ -25,12 +27,15 @@ export function StepChecklistFields({
   onToggleItem,
   onItemNoteChange,
   compact = false,
+  allowItemNotes = true,
 }: StepChecklistFieldsProps) {
   return (
     <div className="flex flex-col gap-2">
       <Label className={compact ? "text-xs" : undefined}>Checklist</Label>
       <p className="text-xs text-muted-foreground">
-        Centang item yang sudah OK, atau pilih / tulis catatan jika belum.
+        {allowItemNotes
+          ? "Centang item yang sudah OK. Yang tidak dicentang wajib isi keterangan."
+          : "Semua item wajib dicentang."}
       </p>
       <div
         className={`flex flex-col gap-3 rounded-lg border bg-background p-3 ${compact ? "gap-2 p-2.5" : ""}`}
@@ -86,9 +91,9 @@ export function StepChecklistFields({
                 />
                 {item}
               </label>
-              {!checked && (
+              {allowItemNotes && !checked && (
                 <Input
-                  placeholder="Catatan (wajib jika tidak dicentang)"
+                  placeholder="Keterangan (wajib jika tidak dicentang)"
                   value={note}
                   onChange={(e) => onItemNoteChange(item, e.target.value)}
                   className={`ml-6 ${compact ? "h-8 text-xs" : "text-sm"}`}

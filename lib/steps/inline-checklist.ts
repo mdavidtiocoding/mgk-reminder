@@ -6,12 +6,14 @@ export function usesInlineChecklist(options: {
   checklist?: string[]
   hasOutcome?: boolean
   dateInputs?: DateInputField[]
+  noteRoute?: boolean
 }): boolean {
   const mode = options.completionMode ?? "normal"
   return (
     requiresChecklist(mode) &&
     Boolean(options.checklist?.length) &&
     !options.hasOutcome &&
-    !(options.dateInputs && options.dateInputs.length > 0)
+    !(options.dateInputs && options.dateInputs.length > 0) &&
+    !options.noteRoute
   )
 }

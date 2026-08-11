@@ -2,6 +2,7 @@
 
 import { ArrowDown, AlertTriangle, CheckCircle2, Circle, Lock } from "lucide-react"
 
+import { IncomingStepNotes } from "@/components/project/incoming-step-notes"
 import { MarkDoneDialog } from "@/components/project/mark-done-dialog"
 import { SetFollowUpDialog } from "@/components/project/set-followup-dialog"
 import { StepChecklistCompletion } from "@/components/project/step-checklist-completion"
@@ -150,6 +151,9 @@ function StepDoneBody({
             </pre>
           </div>
         )}
+        {(step.incomingNotes?.length ?? 0) > 0 && (
+          <IncomingStepNotes notes={step.incomingNotes ?? []} />
+        )}
       </div>
       {step.canUndo && (
         <StepUndoButton projectId={project.id} stepCode={step.code} />
@@ -186,11 +190,15 @@ function StepActiveBody({
     checklist: step.checklist,
     hasOutcome: step.hasOutcome,
     dateInputs: step.dateInputs,
+    noteRoute: (step.noteRouteTargets?.length ?? 0) > 0,
   })
 
   return (
     <div className={cn("space-y-3", compact ? "mt-2" : "mt-3")}>
       {!compact && <StepFlowWarning codes={step.flowWarnings} />}
+      {(step.incomingNotes?.length ?? 0) > 0 && (
+        <IncomingStepNotes notes={step.incomingNotes ?? []} compact={compact} />
+      )}
       {!compact && (
         <p className="text-sm text-muted-foreground">
           PIC: <span className="text-foreground">{step.divisionLabel}</span>
@@ -261,6 +269,7 @@ function StepActiveBody({
               hasOutcome={step.hasOutcome}
               outcomeRescheduleField={step.outcomeRescheduleField}
               bastChoice={step.bastChoice}
+              noteRouteTargets={step.noteRouteTargets}
             />
           )}
           <SetFollowUpDialog
@@ -314,11 +323,16 @@ export function StepTimelineCard({
         <StepActiveBody project={project} step={step} compact={nested} />
       )}
       {step.status === "locked" && (
-        <p className="mt-2 text-sm text-muted-foreground">
-          {step.prerequisites.length > 0
-            ? `Menunggu: ${step.prerequisites.join(", ")}`
-            : "Terkunci"}
-        </p>
+        <div className="mt-2 space-y-2">
+          <p className="text-sm text-muted-foreground">
+            {step.prerequisites.length > 0
+              ? `Menunggu: ${step.prerequisites.join(", ")}`
+              : "Terkunci"}
+          </p>
+          {(step.incomingNotes?.length ?? 0) > 0 && (
+            <IncomingStepNotes notes={step.incomingNotes ?? []} compact />
+          )}
+        </div>
       )}
     </div>
   )

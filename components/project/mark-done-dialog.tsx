@@ -18,14 +18,22 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { todayDateKeyWib } from "@/lib/format"
 import { DATE_FIELD_LABELS, type DateField, type DateInputField } from "@/lib/steps"
 import { isChecklistItemComplete } from "@/lib/steps/checklist-response"
 import {
   COMPLETION_MODE_LABELS,
+  allowsChecklistItemNotes,
   requiresChecklist,
-  requiresKeterangan,
+  showsStandaloneKeterangan,
   type StepCompletionMode,
 } from "@/lib/steps/completion-mode"
 
@@ -39,6 +47,7 @@ type MarkDoneDialogProps = {
   hasOutcome?: boolean
   outcomeRescheduleField?: DateField
   bastChoice?: boolean
+  noteRouteTargets?: { code: string; name: string }[]
 }
 
 export function MarkDoneDialog({
@@ -49,8 +58,9 @@ export function MarkDoneDialog({
   checklist,
   dateInputs,
   hasOutcome,
-  outcomeRescheduleField = "ex_work_date",
+  outcomeRescheduleField,
   bastChoice,
+  noteRouteTargets = [],
 }: MarkDoneDialogProps) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -63,12 +73,21 @@ export function MarkDoneDialog({
   const [rescheduleDate, setRescheduleDate] = useState("")
   const [bast2Required, setBast2Required] = useState<boolean | null>(null)
   const [bastEstimate, setBastEstimate] = useState("")
+  const [noteRoutePresence, setNoteRoutePresence] = useState<"ada" | "tidak" | "">(
+    ""
+  )
+  const [noteRouteTo, setNoteRouteTo] = useState("")
+  const [noteRouteMessage, setNoteRouteMessage] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const showChecklist =
     requiresChecklist(completionMode) && checklist && checklist.length > 0
-  const noteRequired = requiresKeterangan(completionMode)
+  const itemNotesAllowed = allowsChecklistItemNotes(completionMode)
+  const noteRequired = showsStandaloneKeterangan(
+    completionMode,
+    Boolean(showChecklist)
+  )
   const isReschedule = hasOutcome && outcome === "reschedule"
   const showDateInputs =
     !!dateInputs && dateInputs.length > 0 && (!hasOutcome || outcome === "ok")
@@ -82,6 +101,9 @@ export function MarkDoneDialog({
     setRescheduleDate("")
     setBast2Required(null)
     setBastEstimate("")
+    setNoteRoutePresence("")
+    setNoteRouteTo(noteRouteTargets.length === 1 ? noteRouteTargets[0].code : "")
+    setNoteRouteMessage("")
     setError(null)
   }
 
@@ -106,11 +128,14 @@ export function MarkDoneDialog({
     !showChecklist ||
     isReschedule ||
     checklist!.every((item) =>
-      isChecklistItemComplete({
-        item,
-        checked: checkedItems.has(item),
-        note: checklistItemNotes[item],
-      })
+      isChecklistItemComplete(
+        {
+          item,
+          checked: checkedItems.has(item),
+          note: checklistItemNotes[item],
+        },
+        { allowItemNotes: itemNotesAllowed }
+      )
     )
   const dateInputsComplete =
     !showDateInputs || dateInputs!.every((input) => !!dateValues[input.field])
@@ -123,13 +148,21 @@ export function MarkDoneDialog({
     isReschedule ||
     (bast2Required !== null && bastEstimate.trim().length > 0)
   const noteComplete = !noteRequired || isReschedule || note.trim().length > 0
+  const showNoteRoute = noteRouteTargets.length > 0 && !isReschedule
+  const noteRouteComplete =
+    !showNoteRoute ||
+    noteRoutePresence === "tidak" ||
+    (noteRoutePresence === "ada" &&
+      noteRouteMessage.trim().length > 0 &&
+      noteRouteTargets.some((target) => target.code === noteRouteTo))
 
   const canSubmit =
     checklistComplete &&
     dateInputsComplete &&
     outcomeComplete &&
     bastComplete &&
-    noteComplete
+    noteComplete &&
+    noteRouteComplete
 
   function handleSubmit() {
     setError(null)
@@ -143,6 +176,11 @@ export function MarkDoneDialog({
         rescheduleDate: outcome === "reschedule" ? rescheduleDate : undefined,
         bast2Required: bastChoice && !isReschedule ? bast2Required ?? undefined : undefined,
         bastEstimate: bastChoice && !isReschedule ? bastEstimate : undefined,
+        noteRoutePresence: showNoteRoute ? noteRoutePresence || undefined : undefined,
+        noteRouteTo:
+          showNoteRoute && noteRoutePresence === "ada" ? noteRouteTo : undefined,
+        noteRouteMessage:
+          showNoteRoute && noteRoutePresence === "ada" ? noteRouteMessage : undefined,
       })
       if (result.success) {
         setOpen(false)
@@ -185,8 +223,12 @@ export function MarkDoneDialog({
 
           <div className="flex flex-col gap-4">
             {hasOutcome && (
-              <div className="flex flex-col gap-2">
-                <Label>Hasil</Label>
+              <div className="flex flex-col gap-2 rounded-md border p-3">
+                <Label>Selesai / Belum</Label>
+                <p className="text-xs text-muted-foreground">
+                  Kalau belum, pilih tanggal berikutnya. Step tetap aktif dan
+                  ditanya lagi di tanggal itu.
+                </p>
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -194,7 +236,7 @@ export function MarkDoneDialog({
                     variant={outcome === "ok" ? "default" : "outline"}
                     onClick={() => setOutcome("ok")}
                   >
-                    OK
+                    Selesai
                   </Button>
                   <Button
                     type="button"
@@ -202,13 +244,16 @@ export function MarkDoneDialog({
                     variant={outcome === "reschedule" ? "default" : "outline"}
                     onClick={() => setOutcome("reschedule")}
                   >
-                    Perlu Reschedule
+                    Belum
                   </Button>
                 </div>
                 {outcome === "reschedule" && (
                   <div className="mt-1 flex flex-col gap-1.5">
                     <Label htmlFor="reschedule-date" className="text-xs">
-                      Tanggal baru — {DATE_FIELD_LABELS[outcomeRescheduleField]}
+                      Tanggal berikutnya
+                      {outcomeRescheduleField
+                        ? ` — juga geser ${DATE_FIELD_LABELS[outcomeRescheduleField]}`
+                        : ""}
                     </Label>
                     <Input
                       id="reschedule-date"
@@ -218,6 +263,61 @@ export function MarkDoneDialog({
                       onChange={(e) => setRescheduleDate(e.target.value)}
                     />
                   </div>
+                )}
+              </div>
+            )}
+
+            {showNoteRoute && (
+              <div className="flex flex-col gap-3 rounded-md border p-3">
+                <Label>Ada / Tidak</Label>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={noteRoutePresence === "ada" ? "default" : "outline"}
+                    onClick={() => setNoteRoutePresence("ada")}
+                  >
+                    Ada
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={noteRoutePresence === "tidak" ? "default" : "outline"}
+                    onClick={() => setNoteRoutePresence("tidak")}
+                  >
+                    Tidak
+                  </Button>
+                </div>
+                {noteRoutePresence === "ada" && (
+                  <>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="note-route-message" className="text-xs">
+                        Catatan untuk step berikutnya (wajib)
+                      </Label>
+                      <Textarea
+                        id="note-route-message"
+                        placeholder="Tulis catatan yang diteruskan ke step tujuan…"
+                        value={noteRouteMessage}
+                        onChange={(e) => setNoteRouteMessage(e.target.value)}
+                        rows={3}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs">Teruskan ke</Label>
+                      <Select value={noteRouteTo || undefined} onValueChange={setNoteRouteTo}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih step" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {noteRouteTargets.map((target) => (
+                            <SelectItem key={target.code} value={target.code}>
+                              {target.code} — {target.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
                 )}
               </div>
             )}
@@ -271,6 +371,7 @@ export function MarkDoneDialog({
                 onItemNoteChange={(item, value) =>
                   setChecklistItemNotes((prev) => ({ ...prev, [item]: value }))
                 }
+                allowItemNotes={itemNotesAllowed}
               />
             )}
 
@@ -297,7 +398,7 @@ export function MarkDoneDialog({
               </div>
             )}
 
-            {!isReschedule && (noteRequired || !showChecklist) && (
+            {!isReschedule && !showChecklist && (
               <div className="flex flex-col gap-2">
                 <Label htmlFor="note">
                   {noteRequired ? "Keterangan (wajib)" : "Catatan (opsional)"}
