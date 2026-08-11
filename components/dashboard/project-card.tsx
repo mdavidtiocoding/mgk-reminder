@@ -35,14 +35,22 @@ function resolveBorderClass(project: DashboardProject): string {
   )
 }
 
-function primaryDivision(project: DashboardProject) {
-  return project.activeSteps[0]?.division ?? null
+function uniqueActiveDivisions(project: DashboardProject) {
+  const seen = new Set<string>()
+  const result: { division: DashboardProject["activeSteps"][number]["division"]; label: string }[] =
+    []
+  for (const step of project.activeSteps) {
+    if (seen.has(step.division)) continue
+    seen.add(step.division)
+    result.push({ division: step.division, label: step.divisionLabel })
+  }
+  return result
 }
 
 export function ProjectCard({ project, variant = "classic" }: ProjectCardProps) {
   const [expanded, setExpanded] = useState(false)
   const isOnHold = project.status === "on_hold"
-  const division = primaryDivision(project)
+  const divisionBadges = uniqueActiveDivisions(project)
   const pendingCount = project.activeSteps.length
   const showDelay = project.status === "active" && project.maxWaitingDays > 0
 
@@ -57,12 +65,14 @@ export function ProjectCard({ project, variant = "classic" }: ProjectCardProps) 
               delayDays={showDelay ? project.maxWaitingDays : 0}
               isWaitingWarning={project.isWaitingWarning}
             />
-            {division && project.status === "active" && (
-              <DivisionBadge
-                division={division}
-                label={project.activeSteps[0]?.divisionLabel}
-              />
-            )}
+            {project.status === "active" &&
+              divisionBadges.map((item) => (
+                <DivisionBadge
+                  key={item.division}
+                  division={item.division}
+                  label={item.label}
+                />
+              ))}
           </div>
           <CardTitle className={cn("text-base leading-snug", isOnHold && "text-muted-foreground")}>
             {project.name}
