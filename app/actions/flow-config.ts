@@ -247,17 +247,29 @@ export async function updateStepCompletionConfig(
 
 export async function updateStepSubsteps(
   stepCode: string,
-  substeps: { key: string; label: string; sortOrder: number; kind?: "required" | "reminder" }[]
+  substeps: {
+    key: string
+    label: string
+    sortOrder: number
+    kind?: "required" | "reminder"
+    checklist?: string[]
+  }[]
 ): Promise<{ success: true } | { success: false; error: string }> {
   const { supabase } = await requirePermission("settings_flow")
 
   const normalized = substeps
-    .map((substep, index) => ({
-      key: substep.key.trim(),
-      label: substep.label.trim(),
-      sort_order: substep.sortOrder || index + 1,
-      kind: substep.kind === "reminder" ? "reminder" : "required",
-    }))
+    .map((substep, index) => {
+      const checklist = (substep.checklist ?? [])
+        .map((item) => item.trim())
+        .filter(Boolean)
+      return {
+        key: substep.key.trim(),
+        label: substep.label.trim(),
+        sort_order: substep.sortOrder || index + 1,
+        kind: substep.kind === "reminder" ? "reminder" : "required",
+        ...(checklist.length > 0 ? { checklist_items: checklist } : {}),
+      }
+    })
     .filter((substep) => substep.key && substep.label)
 
   const keys = normalized.map((s) => s.key)

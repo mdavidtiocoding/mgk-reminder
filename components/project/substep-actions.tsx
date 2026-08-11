@@ -5,6 +5,7 @@ import { useState, useTransition } from "react"
 import { Undo2 } from "lucide-react"
 
 import { completeSubstep, undoSubstep } from "@/app/actions/complete-substep"
+import { StepChecklistFields } from "@/components/project/step-checklist-fields"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -20,9 +21,11 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { formatDateKey, formatDateTime, todayDateKeyWib } from "@/lib/format"
 import type { SubstepDefinition, SubstepCompletion } from "@/lib/steps/substeps"
+import { isChecklistItemComplete } from "@/lib/steps/checklist-response"
 import {
   canCompleteSubstepNow,
   getCompletedSubstepKeys,
+  getSubstepChecklist,
   getSubstepKind,
 } from "@/lib/steps/substeps"
 
@@ -60,6 +63,8 @@ export function SubstepActions({
   const [pendingSubstep, setPendingSubstep] = useState<SubstepDefinition | null>(null)
   const [eventDate, setEventDate] = useState("")
   const [note, setNote] = useState("")
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
+  const [checklistItemNotes, setChecklistItemNotes] = useState<Record<string, string>>({})
 
   if (substeps.length === 0) return null
 
@@ -70,6 +75,8 @@ export function SubstepActions({
     setError(null)
     setEventDate(todayDateKeyWib())
     setNote("")
+    setCheckedItems(new Set())
+    setChecklistItemNotes({})
     setPendingSubstep(substep)
   }
 
@@ -78,13 +85,46 @@ export function SubstepActions({
     setPendingSubstep(null)
   }
 
+  const pendingChecklist = pendingSubstep
+    ? getSubstepChecklist(pendingSubstep)
+    : []
+  const pendingChecklistComplete =
+    pendingChecklist.length === 0 ||
+    pendingChecklist.every((item) =>
+      isChecklistItemComplete({
+        item,
+        checked: checkedItems.has(item),
+        note: checklistItemNotes[item],
+      })
+    )
+
+  function toggleChecklistItem(item: string) {
+    setCheckedItems((prev) => {
+      const next = new Set(prev)
+      if (next.has(item)) next.delete(item)
+      else {
+        next.add(item)
+        setChecklistItemNotes((notes) => {
+          if (!notes[item]) return notes
+          const { [item]: _removed, ...rest } = notes
+          return rest
+        })
+      }
+      return next
+    })
+  }
+
   function handleConfirm() {
-    if (!pendingSubstep) return
+    if (!pendingSubstep || !pendingChecklistComplete) return
     setError(null)
     startTransition(async () => {
       const result = await completeSubstep(projectId, stepCode, pendingSubstep.key, {
         eventDate: eventDate || undefined,
         note: note || undefined,
+        checkedItems:
+          pendingChecklist.length > 0 ? Array.from(checkedItems) : undefined,
+        checklistItemNotes:
+          pendingChecklist.length > 0 ? checklistItemNotes : undefined,
       })
       if (!result.success) {
         setError(result.error)
@@ -115,6 +155,7 @@ export function SubstepActions({
             const done = completedKeys.has(substep.key)
             const completion = stepCompletions.find((c) => c.substepKey === substep.key)
             const kind = getSubstepKind(substep)
+            const checklist = getSubstepChecklist(substep)
             const actionable =
               canEdit && canCompleteSubstepNow(substep, substeps, completedKeys)
 
@@ -127,6 +168,11 @@ export function SubstepActions({
                   {kind === "reminder" && !done && (
                     <Badge variant="outline" className="text-[10px]">
                       Reminder
+                    </Badge>
+                  )}
+                  {!done && checklist.length > 0 && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {checklist.length} checklist
                     </Badge>
                   )}
                   {done ? (
@@ -172,7 +218,9 @@ export function SubstepActions({
                       <p>Tanggal: {formatDateKey(completion.eventDate)}</p>
                     )}
                     {completion.note && (
-                      <p className="italic">&ldquo;{completion.note}&rdquo;</p>
+                      <p className="whitespace-pre-wrap italic">
+                        {completion.note}
+                      </p>
                     )}
                   </div>
                 )}
@@ -188,12 +236,17 @@ export function SubstepActions({
       </div>
 
       <Dialog open={!!pendingSubstep} onOpenChange={(open) => !open && closeConfirm()}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className={pendingChecklist.length > 0 ? "sm:max-w-lg" : "sm:max-w-md"}>
           <DialogHeader>
             <DialogTitle>{pendingSubstep?.label}</DialogTitle>
             <DialogDescription>
               {stepCode} — konfirmasi sub-step ini selesai. Waktu submit dicatat otomatis
               saat Anda klik Simpan.
+              {pendingChecklist.length > 0 && (
+                <span className="mt-1 block">
+                  Checklist sub-step ini harus selesai dulu baru bisa Simpan.
+                </span>
+              )}
               {pendingSubstep && getSubstepKind(pendingSubstep) === "reminder" && (
                 <span className="mt-1 block">
                   Sub-step reminder tidak memblokir unlock step berikutnya.
@@ -203,6 +256,18 @@ export function SubstepActions({
           </DialogHeader>
 
           <div className="flex flex-col gap-3">
+            {pendingChecklist.length > 0 && (
+              <StepChecklistFields
+                checklist={pendingChecklist}
+                checkedItems={checkedItems}
+                checklistItemNotes={checklistItemNotes}
+                onToggleItem={toggleChecklistItem}
+                onItemNoteChange={(item, value) =>
+                  setChecklistItemNotes((prev) => ({ ...prev, [item]: value }))
+                }
+                compact
+              />
+            )}
             {pendingSubstep && (
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="substep-event-date">
@@ -239,7 +304,11 @@ export function SubstepActions({
             <Button type="button" variant="outline" onClick={closeConfirm} disabled={isPending}>
               Batal
             </Button>
-            <Button type="button" onClick={handleConfirm} disabled={isPending}>
+            <Button
+              type="button"
+              onClick={handleConfirm}
+              disabled={isPending || !pendingChecklistComplete}
+            >
               {isPending ? "Menyimpan…" : "Simpan"}
             </Button>
           </DialogFooter>

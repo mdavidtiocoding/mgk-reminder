@@ -51,6 +51,7 @@ export async function saveFlowStepDraft(
       label: s.label.trim(),
       sortOrder: i + 1,
       kind: s.kind ?? ("required" as const),
+      checklist: (s.checklist ?? []).map((item) => item.trim()).filter(Boolean),
     }))
     .filter((s) => s.label)
   const cleanedOriginal = original.substeps
@@ -59,6 +60,7 @@ export async function saveFlowStepDraft(
       label: s.label.trim(),
       sortOrder: i + 1,
       kind: s.kind ?? ("required" as const),
+      checklist: (s.checklist ?? []).map((item) => item.trim()).filter(Boolean),
     }))
     .filter((s) => s.label)
 

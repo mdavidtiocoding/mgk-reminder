@@ -6,6 +6,7 @@ import { useMemo, useState } from "react"
 import { Pencil, ListChecks, Layers, Zap } from "lucide-react"
 
 import { saveFlowStepDraft } from "@/lib/flow-config/save-draft"
+import { DemoMockComplete } from "@/components/settings/demo-mock-complete"
 import { FlowStepEditDrawer } from "@/components/settings/flow-config/flow-step-edit-drawer"
 import type { FlowConfigRow } from "@/components/settings/flow-config-table"
 import { Badge } from "@/components/ui/badge"
@@ -95,9 +96,11 @@ export function DemoTaskPreview({
         >
           {getDivisionLabel(division)}
         </span>
-        . Klik <span className="font-medium text-foreground">Edit konfigurasi</span>{" "}
-        untuk ubah checklist, sub-step, mode selesai, atau trigger — langsung tersimpan
-        ke Flow Config.
+        . Isi checklist / sub-step di kartu sebagai{" "}
+        <span className="font-medium text-foreground">mock test</span> (tidak
+        tersimpan ke project). Klik{" "}
+        <span className="font-medium text-foreground">Edit konfigurasi</span>{" "}
+        untuk ubah checklist, sub-step, mode selesai, atau trigger.
       </div>
 
       {toast && (
@@ -154,8 +157,17 @@ function DemoTaskCard({
   row: FlowConfigRow
   onEdit: () => void
 }) {
-  const hasChecklist = row.checklistItems.length > 0
+  const nestedChecklistCount = row.substeps.reduce(
+    (n, s) => n + (s.checklist?.length ?? 0),
+    0
+  )
+  const hasChecklist =
+    row.substeps.length > 0
+      ? nestedChecklistCount > 0
+      : row.checklistItems.length > 0
   const hasSubsteps = row.substeps.length > 0
+  const checklistCount =
+    row.substeps.length > 0 ? nestedChecklistCount : row.checklistItems.length
 
   return (
     <Card className={cn("border-l-4", DIVISION_BADGE_STYLES[row.division as Division]?.border)}>
@@ -191,48 +203,25 @@ function DemoTaskCard({
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 pt-0">
-        {hasChecklist && (
-          <div className="rounded-lg border bg-background p-3">
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-medium">
-              <ListChecks className="size-3.5" aria-hidden />
-              Checklist ({row.checklistItems.length})
-            </p>
-            <ul className="flex flex-col gap-1 text-sm text-muted-foreground">
-              {row.checklistItems.map((item) => (
-                <li key={item} className="flex gap-2">
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {hasSubsteps && (
-          <div className="rounded-lg border bg-background p-3">
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-medium">
-              <Layers className="size-3.5" aria-hidden />
-              Sub-step ({row.substeps.length})
-            </p>
-            <ol className="flex flex-col gap-1 text-sm text-muted-foreground">
-              {row.substeps.map((s, i) => (
-                <li key={s.key}>
-                  {i + 1}. {s.label}
-                  <span className="ml-1 text-[10px] uppercase tracking-wide opacity-70">
-                    ({s.kind ?? "required"})
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
-
-        {!hasChecklist && !hasSubsteps && (
-          <p className="text-xs text-muted-foreground">
-            Belum ada checklist / sub-step — edit untuk menambah (mis. multiple
-            sub-step atau checklist).
+        {(hasChecklist || hasSubsteps) && (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            {hasChecklist && (
+              <>
+                <ListChecks className="size-3.5" aria-hidden />
+                {checklistCount} checklist
+              </>
+            )}
+            {hasChecklist && hasSubsteps && <span>·</span>}
+            {hasSubsteps && (
+              <>
+                <Layers className="size-3.5" aria-hidden />
+                {row.substeps.length} sub-step
+              </>
+            )}
           </p>
         )}
+
+        <DemoMockComplete row={row} />
 
         {row.prerequisites.length > 0 && (
           <p className="text-xs text-muted-foreground">

@@ -34,7 +34,10 @@ export function buildDraftFromRow(row: FlowConfigRow, displayName: string): Flow
     unlocksSteps: [...row.unlocksSteps],
     completionMode: row.completionMode,
     checklistItems: [...row.checklistItems],
-    substeps: row.substeps.map((s) => ({ ...s })),
+    substeps: row.substeps.map((s) => ({
+      ...s,
+      checklist: [...(s.checklist ?? [])],
+    })),
     trigger: row.trigger ?? stepDef?.trigger ?? { type: "immediate" },
     bastChoice: row.bastChoice ?? stepDef?.bastChoice ?? false,
   }
@@ -60,11 +63,18 @@ function arraysEqual(a: string[], b: string[]): boolean {
 
 function substepsEqual(a: SubstepDefinition[], b: SubstepDefinition[]): boolean {
   if (a.length !== b.length) return false
-  return a.every(
-    (s, i) =>
-      s.key === b[i]?.key &&
-      s.label === b[i]?.label &&
-      s.sortOrder === b[i]?.sortOrder &&
-      (s.kind ?? "required") === (b[i]?.kind ?? "required")
-  )
+  return a.every((s, i) => {
+    const other = b[i]
+    if (!other) return false
+    const aList = (s.checklist ?? []).map((item) => item.trim()).filter(Boolean)
+    const bList = (other.checklist ?? []).map((item) => item.trim()).filter(Boolean)
+    return (
+      s.key === other.key &&
+      s.label === other.label &&
+      s.sortOrder === other.sortOrder &&
+      (s.kind ?? "required") === (other.kind ?? "required") &&
+      aList.length === bList.length &&
+      aList.every((item, idx) => item === bList[idx])
+    )
+  })
 }

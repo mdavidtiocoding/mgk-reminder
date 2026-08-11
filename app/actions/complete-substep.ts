@@ -16,8 +16,14 @@ import {
   areRequiredSubstepsComplete,
   canCompleteSubstepNow,
   getCompletedSubstepKeys,
+  getSubstepChecklist,
   getSubstepKind,
 } from "@/lib/steps/substeps"
+import {
+  buildChecklistResponses,
+  formatCompletionNote,
+  validateChecklistResponses,
+} from "@/lib/steps/checklist-response"
 import {
   isUserAdmin,
   resolveUserDivisions,
@@ -33,7 +39,12 @@ export async function completeSubstep(
   projectId: string,
   stepCode: string,
   substepKey: string,
-  options?: { note?: string; eventDate?: string }
+  options?: {
+    note?: string
+    eventDate?: string
+    checkedItems?: string[]
+    checklistItemNotes?: Record<string, string>
+  }
 ): Promise<SubstepActionResult> {
   const supabase = await createClient()
   const {
@@ -137,12 +148,27 @@ export async function completeSubstep(
     eventDate = options.eventDate
   }
 
+  const substepChecklist = getSubstepChecklist(substep)
+  let combinedNote = options?.note?.trim() || null
+  if (substepChecklist.length > 0) {
+    const responses = buildChecklistResponses(
+      substepChecklist,
+      options?.checkedItems ?? [],
+      options?.checklistItemNotes ?? {}
+    )
+    const checklistError = validateChecklistResponses(substepChecklist, responses)
+    if (checklistError) {
+      return { success: false, error: checklistError }
+    }
+    combinedNote = formatCompletionNote(responses, options?.note)
+  }
+
   const insertPayload = {
     project_id: projectId,
     step_code: stepCode,
     substep_key: substepKey,
     completed_by: user.id,
-    note: options?.note?.trim() || null,
+    note: combinedNote,
     ...(eventDate ? { event_date: eventDate } : {}),
   }
 
@@ -156,7 +182,7 @@ export async function completeSubstep(
       step_code: stepCode,
       substep_key: substepKey,
       completed_by: user.id,
-      note: options?.note?.trim() || null,
+      note: combinedNote,
     })
     insertError = retry.error
   }

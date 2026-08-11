@@ -244,7 +244,9 @@ export function FlowStepEditDrawer({
 
             <EditSection title="Sub-step">
               <p className="text-xs text-muted-foreground">
-                Wajib = harus selesai agar step unlock. Reminder = self-reminder, tidak
+                Wajib dikerjakan berurutan. Tiap sub-step boleh punya checklist
+                sendiri — checklist itu harus selesai dulu baru sub-step bisa
+                ditandai done, lalu yang berikutnya unlock. Reminder = tidak
                 blok step berikutnya.
               </p>
               <SubstepsForm
@@ -433,54 +435,81 @@ function SubstepsForm({
   onChange: (substeps: FlowStepDraft["substeps"]) => void
 }) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       {substeps.length === 0 ? (
         <p className="text-xs text-muted-foreground">Belum ada sub-step.</p>
       ) : (
         substeps.map((row, index) => (
-          <div key={`${row.key}-${index}`} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <span className="w-5 shrink-0 text-xs text-muted-foreground">{index + 1}.</span>
-            <Input
-              value={row.label}
-              placeholder="Label tombol"
-              disabled={disabled}
-              className="min-w-0 flex-1"
-              onChange={(e) =>
-                onChange(
-                  substeps.map((r, i) =>
-                    i === index ? { ...r, label: e.target.value } : r
+          <div
+            key={`${row.key}-${index}`}
+            className="flex flex-col gap-2 rounded-md border bg-background p-2.5"
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <span className="w-5 shrink-0 text-xs text-muted-foreground">
+                {index + 1}.
+              </span>
+              <Input
+                value={row.label}
+                placeholder="Label tombol"
+                disabled={disabled}
+                className="min-w-0 flex-1"
+                onChange={(e) =>
+                  onChange(
+                    substeps.map((r, i) =>
+                      i === index ? { ...r, label: e.target.value } : r
+                    )
                   )
-                )
-              }
-            />
-            <Select
-              value={row.kind ?? "required"}
-              onValueChange={(value) =>
-                onChange(
-                  substeps.map((r, i) =>
-                    i === index ? { ...r, kind: value as SubstepKind } : r
+                }
+              />
+              <Select
+                value={row.kind ?? "required"}
+                onValueChange={(value) =>
+                  onChange(
+                    substeps.map((r, i) =>
+                      i === index ? { ...r, kind: value as SubstepKind } : r
+                    )
                   )
-                )
-              }
-              disabled={disabled}
-            >
-              <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="required">{SUBSTEP_KIND_LABELS.required}</SelectItem>
-                <SelectItem value="reminder">{SUBSTEP_KIND_LABELS.reminder}</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={disabled}
-              onClick={() => onChange(substeps.filter((_, i) => i !== index))}
-            >
-              ×
-            </Button>
+                }
+                disabled={disabled}
+              >
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="required">
+                    {SUBSTEP_KIND_LABELS.required}
+                  </SelectItem>
+                  <SelectItem value="reminder">
+                    {SUBSTEP_KIND_LABELS.reminder}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={disabled}
+                onClick={() => onChange(substeps.filter((_, i) => i !== index))}
+              >
+                ×
+              </Button>
+            </div>
+            <div className="pl-0 sm:pl-6">
+              <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
+                Checklist sub-step ini (opsional)
+              </p>
+              <ChecklistEditor
+                items={row.checklist ?? []}
+                disabled={disabled}
+                onChange={(items) =>
+                  onChange(
+                    substeps.map((r, i) =>
+                      i === index ? { ...r, checklist: items } : r
+                    )
+                  )
+                }
+              />
+            </div>
           </div>
         ))
       )}
@@ -497,6 +526,7 @@ function SubstepsForm({
               label: "",
               sortOrder: substeps.length + 1,
               kind: "required",
+              checklist: [],
             },
           ])
         }

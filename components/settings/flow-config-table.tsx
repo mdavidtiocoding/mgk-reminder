@@ -323,6 +323,7 @@ export function FlowConfigTable({
         label: s.label.trim(),
         sortOrder: i + 1,
         kind: s.kind ?? "required",
+        checklist: (s.checklist ?? []).map((item) => item.trim()).filter(Boolean),
       }))
       .filter((s) => s.label)
     const cleanedOriginal = original.substeps
@@ -331,6 +332,7 @@ export function FlowConfigTable({
         label: s.label.trim(),
         sortOrder: i + 1,
         kind: s.kind ?? "required",
+        checklist: (s.checklist ?? []).map((item) => item.trim()).filter(Boolean),
       }))
       .filter((s) => s.label)
     if (JSON.stringify(cleanedSubsteps) !== JSON.stringify(cleanedOriginal)) {

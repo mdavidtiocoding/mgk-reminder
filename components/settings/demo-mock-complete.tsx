@@ -1,0 +1,565 @@
+"use client"
+
+import { useMemo, useState } from "react"
+import { CheckCircle2, RotateCcw } from "lucide-react"
+
+import { StepChecklistFields } from "@/components/project/step-checklist-fields"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import type { FlowConfigRow } from "@/components/settings/flow-config-table"
+import { todayDateKeyWib } from "@/lib/format"
+import {
+  DATE_FIELD_LABELS,
+  getStep,
+  type DateField,
+} from "@/lib/steps"
+import { isChecklistItemComplete } from "@/lib/steps/checklist-response"
+import {
+  requiresChecklist,
+  requiresKeterangan,
+} from "@/lib/steps/completion-mode"
+import {
+  areRequiredSubstepsComplete,
+  canCompleteSubstepNow,
+  getSubstepChecklist,
+  getSubstepKind,
+  type SubstepDefinition,
+} from "@/lib/steps/substeps"
+import { cn } from "@/lib/utils"
+
+type DemoMockCompleteProps = {
+  row: FlowConfigRow
+}
+
+export function DemoMockComplete({ row }: DemoMockCompleteProps) {
+  const hasSubsteps = row.substeps.length > 0
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-dashed bg-muted/20 p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Mock test
+      </p>
+      {hasSubsteps ? (
+        <MockSubstepFlow row={row} />
+      ) : (
+        <MockChecklistFlow row={row} />
+      )}
+    </div>
+  )
+}
+
+function MockSubstepFlow({ row }: { row: FlowConfigRow }) {
+  const substeps = row.substeps
+  const [doneKeys, setDoneKeys] = useState<Set<string>>(new Set())
+  const [active, setActive] = useState<SubstepDefinition | null>(null)
+  const [eventDate, setEventDate] = useState(todayDateKeyWib())
+  const [note, setNote] = useState("")
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
+  const [checklistItemNotes, setChecklistItemNotes] = useState<
+    Record<string, string>
+  >({})
+
+  const stepDone = areRequiredSubstepsComplete(substeps, doneKeys)
+  const activeChecklist = active ? getSubstepChecklist(active) : []
+  const activeChecklistComplete =
+    activeChecklist.length === 0 ||
+    activeChecklist.every((item) =>
+      isChecklistItemComplete({
+        item,
+        checked: checkedItems.has(item),
+        note: checklistItemNotes[item],
+      })
+    )
+
+  function reset() {
+    setDoneKeys(new Set())
+    setActive(null)
+    setEventDate(todayDateKeyWib())
+    setNote("")
+    setCheckedItems(new Set())
+    setChecklistItemNotes({})
+  }
+
+  function confirmActive() {
+    if (!active || !activeChecklistComplete) return
+    setDoneKeys((prev) => new Set(prev).add(active.key))
+    setActive(null)
+    setEventDate(todayDateKeyWib())
+    setNote("")
+    setCheckedItems(new Set())
+    setChecklistItemNotes({})
+  }
+
+  function toggleChecklistItem(item: string) {
+    setCheckedItems((prev) => {
+      const next = new Set(prev)
+      if (next.has(item)) next.delete(item)
+      else {
+        next.add(item)
+        setChecklistItemNotes((notes) => {
+          if (!notes[item]) return notes
+          const { [item]: _removed, ...rest } = notes
+          return rest
+        })
+      }
+      return next
+    })
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          <span className="font-medium text-foreground">Sub-step</span> = rangkaian
+          aksi berurutan. Wajib harus urut. Tiap sub-step bisa punya checklist
+          sendiri — checklist itu harus selesai dulu baru sub-step bisa Simpan,
+          lalu yang berikutnya unlock.
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 shrink-0 px-2 text-xs"
+          onClick={reset}
+        >
+          <RotateCcw className="size-3" />
+          Reset
+        </Button>
+      </div>
+
+      {row.checklistItems.length > 0 && (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900">
+          Checklist di level step diabaikan kalau ada sub-step. Pakai checklist
+          per sub-step di Flow Config.
+        </p>
+      )}
+
+      <div className="flex flex-col gap-1.5">
+        {substeps.map((substep, index) => {
+          const done = doneKeys.has(substep.key)
+          const kind = getSubstepKind(substep)
+          const checklist = getSubstepChecklist(substep)
+          const actionable = canCompleteSubstepNow(substep, substeps, doneKeys)
+
+          return (
+            <div
+              key={substep.key}
+              className="flex flex-col gap-1 rounded-md border bg-background px-3 py-2"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] tabular-nums text-muted-foreground">
+                  {index + 1}.
+                </span>
+                {kind === "reminder" && (
+                  <Badge variant="outline" className="text-[10px]">
+                    Reminder
+                  </Badge>
+                )}
+                {!done && checklist.length > 0 && (
+                  <Badge variant="outline" className="text-[10px]">
+                    {checklist.length} checklist
+                  </Badge>
+                )}
+                {done ? (
+                  <Badge variant="secondary">{substep.label}</Badge>
+                ) : actionable ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={kind === "reminder" ? "outline" : "default"}
+                    onClick={() => {
+                      setActive(substep)
+                      setEventDate(todayDateKeyWib())
+                      setNote("")
+                      setCheckedItems(new Set())
+                      setChecklistItemNotes({})
+                    }}
+                  >
+                    {substep.label}
+                  </Button>
+                ) : (
+                  <span className="text-sm text-muted-foreground">
+                    {substep.label}
+                    <span className="ml-1 text-[10px]">(tunggu sebelumnya)</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {active && (
+        <div className="flex flex-col gap-2 rounded-md border bg-background p-3">
+          <p className="text-sm font-medium">{active.label}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {activeChecklist.length > 0
+              ? "Checklist sub-step ini harus selesai dulu baru bisa Simpan."
+              : "Konfirmasi seperti di project: tanggal kejadian + catatan opsional."}
+            {getSubstepKind(active) === "reminder" &&
+              " Reminder tidak memblokir step berikutnya."}
+          </p>
+          {activeChecklist.length > 0 && (
+            <StepChecklistFields
+              checklist={activeChecklist}
+              checkedItems={checkedItems}
+              checklistItemNotes={checklistItemNotes}
+              onToggleItem={toggleChecklistItem}
+              onItemNoteChange={(item, value) =>
+                setChecklistItemNotes((prev) => ({ ...prev, [item]: value }))
+              }
+              compact
+            />
+          )}
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Tanggal kejadian (opsional)</Label>
+            <Input
+              type="date"
+              value={eventDate}
+              onChange={(e) => setEventDate(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Catatan (opsional)</Label>
+            <Textarea
+              rows={2}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => setActive(null)}>
+              Batal
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={confirmActive}
+              disabled={!activeChecklistComplete}
+            >
+              Simpan (mock)
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {stepDone && (
+        <p className="flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-900">
+          <CheckCircle2 className="size-3.5 shrink-0" />
+          Mock OK — semua sub-step wajib selesai. Step dianggap done (tanpa
+          tombol Tandai Selesai terpisah).
+        </p>
+      )}
+    </div>
+  )
+}
+
+function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
+  const stepDef = getStep(row.code)
+  const checklist = row.checklistItems
+  const completionMode = row.completionMode
+  const hasOutcome = stepDef?.hasOutcome === true
+  const dateInputs = stepDef?.dateInputs ?? []
+  const bastChoice = row.bastChoice || stepDef?.bastChoice === true
+  const outcomeRescheduleField: DateField =
+    stepDef?.outcomeRescheduleField ?? "ex_work_date"
+
+  const showChecklist =
+    requiresChecklist(completionMode) && checklist.length > 0
+  const noteRequired = requiresKeterangan(completionMode)
+
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
+  const [checklistItemNotes, setChecklistItemNotes] = useState<
+    Record<string, string>
+  >({})
+  const [note, setNote] = useState("")
+  const [dateValues, setDateValues] = useState<Record<string, string>>({})
+  const [outcome, setOutcome] = useState<"ok" | "reschedule" | "">("")
+  const [rescheduleDate, setRescheduleDate] = useState("")
+  const [bast2Required, setBast2Required] = useState<boolean | null>(null)
+  const [bastEstimate, setBastEstimate] = useState("")
+  const [passed, setPassed] = useState(false)
+
+  const isReschedule = hasOutcome && outcome === "reschedule"
+  const showDateInputs =
+    dateInputs.length > 0 && (!hasOutcome || outcome === "ok")
+
+  function reset() {
+    setCheckedItems(new Set())
+    setChecklistItemNotes({})
+    setNote("")
+    setDateValues({})
+    setOutcome("")
+    setRescheduleDate("")
+    setBast2Required(null)
+    setBastEstimate("")
+    setPassed(false)
+  }
+
+  function toggleChecklistItem(item: string) {
+    setPassed(false)
+    setCheckedItems((prev) => {
+      const next = new Set(prev)
+      if (next.has(item)) next.delete(item)
+      else {
+        next.add(item)
+        setChecklistItemNotes((notes) => {
+          if (!notes[item]) return notes
+          const { [item]: _removed, ...rest } = notes
+          return rest
+        })
+      }
+      return next
+    })
+  }
+
+  const blockers = useMemo(() => {
+    const list: string[] = []
+    if (hasOutcome && !outcome) list.push("Pilih hasil OK / Reschedule")
+    if (isReschedule && !rescheduleDate) list.push("Isi tanggal reschedule")
+    if (bastChoice && !isReschedule) {
+      if (bast2Required === null) list.push("Pilih BAST 1 saja atau BAST 1+2")
+      if (!bastEstimate.trim()) list.push("Isi estimasi BAST")
+    }
+    if (showChecklist && !isReschedule) {
+      const incomplete = checklist.filter(
+        (item) =>
+          !isChecklistItemComplete({
+            item,
+            checked: checkedItems.has(item),
+            note: checklistItemNotes[item],
+          })
+      )
+      if (incomplete.length > 0) {
+        list.push(`${incomplete.length} item checklist belum diisi`)
+      }
+    }
+    if (showDateInputs) {
+      const missing = dateInputs.filter((d) => !dateValues[d.field])
+      if (missing.length > 0) {
+        list.push(`Tanggal wajib: ${missing.map((d) => d.label).join(", ")}`)
+      }
+    }
+    if (noteRequired && !isReschedule && !note.trim()) {
+      list.push("Keterangan wajib diisi")
+    }
+    return list
+  }, [
+    hasOutcome,
+    outcome,
+    isReschedule,
+    rescheduleDate,
+    bastChoice,
+    bast2Required,
+    bastEstimate,
+    showChecklist,
+    checklist,
+    checkedItems,
+    checklistItemNotes,
+    showDateInputs,
+    dateInputs,
+    dateValues,
+    noteRequired,
+    note,
+  ])
+
+  const canSubmit = blockers.length === 0
+  const hasInteractive =
+    showChecklist || hasOutcome || dateInputs.length > 0 || bastChoice || noteRequired
+
+  if (!hasInteractive) {
+    return (
+      <p className="text-[11px] text-muted-foreground">
+        Step normal: cukup tombol Tandai Selesai (catatan opsional). Tidak ada
+        form checklist / sub-step.
+      </p>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          <span className="font-medium text-foreground">Checklist</span> = daftar
+          cek saat mark done sekali. Semua item wajib dicentang atau diberi
+          catatan, lalu konfirmasi selesai.
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 shrink-0 px-2 text-xs"
+          onClick={reset}
+        >
+          <RotateCcw className="size-3" />
+          Reset
+        </Button>
+      </div>
+
+      {hasOutcome && (
+        <div className="flex flex-col gap-2">
+          <Label className="text-xs">Hasil</Label>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={outcome === "ok" ? "default" : "outline"}
+              onClick={() => {
+                setOutcome("ok")
+                setPassed(false)
+              }}
+            >
+              OK
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={outcome === "reschedule" ? "default" : "outline"}
+              onClick={() => {
+                setOutcome("reschedule")
+                setPassed(false)
+              }}
+            >
+              Perlu Reschedule
+            </Button>
+          </div>
+          {outcome === "reschedule" && (
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs">
+                Tanggal baru — {DATE_FIELD_LABELS[outcomeRescheduleField]}
+              </Label>
+              <Input
+                type="date"
+                min={todayDateKeyWib()}
+                value={rescheduleDate}
+                onChange={(e) => {
+                  setRescheduleDate(e.target.value)
+                  setPassed(false)
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {bastChoice && !isReschedule && (
+        <div className="flex flex-col gap-2 rounded-md border bg-background p-2.5">
+          <Label className="text-xs">Pilihan BAST</Label>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={bast2Required === false ? "default" : "outline"}
+              onClick={() => {
+                setBast2Required(false)
+                setPassed(false)
+              }}
+            >
+              Hanya BAST 1
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={bast2Required === true ? "default" : "outline"}
+              onClick={() => {
+                setBast2Required(true)
+                setPassed(false)
+              }}
+            >
+              Ada BAST 1 &amp; BAST 2
+            </Button>
+          </div>
+          <Input
+            placeholder="Estimasi BAST (wajib)"
+            value={bastEstimate}
+            onChange={(e) => {
+              setBastEstimate(e.target.value)
+              setPassed(false)
+            }}
+          />
+        </div>
+      )}
+
+      {showChecklist && !isReschedule && (
+        <StepChecklistFields
+          checklist={checklist}
+          checkedItems={checkedItems}
+          checklistItemNotes={checklistItemNotes}
+          onToggleItem={toggleChecklistItem}
+          onItemNoteChange={(item, value) => {
+            setChecklistItemNotes((prev) => ({ ...prev, [item]: value }))
+            setPassed(false)
+          }}
+          compact
+        />
+      )}
+
+      {showDateInputs && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {dateInputs.map((input) => (
+            <div key={input.field} className="flex flex-col gap-1.5">
+              <Label className="text-xs">{input.label}</Label>
+              <Input
+                type="date"
+                value={dateValues[input.field] ?? ""}
+                onChange={(e) => {
+                  setDateValues((prev) => ({
+                    ...prev,
+                    [input.field]: e.target.value,
+                  }))
+                  setPassed(false)
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {noteRequired && !isReschedule && (
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">Keterangan (wajib)</Label>
+          <Textarea
+            placeholder="Isi keterangan seperti di My Tasks…"
+            value={note}
+            onChange={(e) => {
+              setNote(e.target.value)
+              setPassed(false)
+            }}
+            className="min-h-[72px] text-sm"
+          />
+        </div>
+      )}
+
+      {blockers.length > 0 && (
+        <ul className="list-inside list-disc text-[11px] text-amber-800">
+          {blockers.map((b) => (
+            <li key={b}>{b}</li>
+          ))}
+        </ul>
+      )}
+
+      {passed && (
+        <p
+          className={cn(
+            "flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-900"
+          )}
+        >
+          <CheckCircle2 className="size-3.5 shrink-0" />
+          Mock OK — form mark done valid. Tidak tersimpan ke project.
+        </p>
+      )}
+
+      <Button
+        type="button"
+        size="sm"
+        disabled={!canSubmit}
+        onClick={() => setPassed(true)}
+      >
+        Coba tandai selesai (mock)
+      </Button>
+    </div>
+  )
+}

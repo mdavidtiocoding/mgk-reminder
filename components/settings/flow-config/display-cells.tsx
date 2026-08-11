@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, Layers } from "lucide-react"
 import { useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import type { StepDefinition } from "@/lib/steps"
 import { getTriggerBadges, describeTriggerFull } from "@/lib/steps/trigger-display"
 import type { SubstepDefinition } from "@/lib/steps/substeps"
-import { getSubstepKind, SUBSTEP_KIND_LABELS } from "@/lib/steps/substeps"
+import { getSubstepChecklist, getSubstepKind, SUBSTEP_KIND_LABELS } from "@/lib/steps/substeps"
 import { cn } from "@/lib/utils"
 
 type NameLookup = Map<string, string>
@@ -129,7 +129,8 @@ export function SubstepDisplay({ substeps }: { substeps: SubstepDefinition[] }) 
           setExpanded(true)
         }}
       >
-        🧩 {substeps.length} sub-step
+        <Layers className="size-3" aria-hidden />
+        {substeps.length} sub-step
         <ChevronDown className="size-3" />
       </Button>
     )
@@ -137,16 +138,24 @@ export function SubstepDisplay({ substeps }: { substeps: SubstepDefinition[] }) 
 
   return (
     <div className="flex flex-col gap-0.5">
-      {substeps.map((s, i) => (
-        <span key={s.key} className="text-xs">
-          {i + 1}. {s.label}
-          {getSubstepKind(s) === "reminder" && (
-            <span className="ml-1 text-muted-foreground">
-              ({SUBSTEP_KIND_LABELS.reminder})
-            </span>
-          )}
-        </span>
-      ))}
+      {substeps.map((s, i) => {
+        const checklist = getSubstepChecklist(s)
+        return (
+          <span key={s.key} className="text-xs">
+            {i + 1}. {s.label}
+            {getSubstepKind(s) === "reminder" && (
+              <span className="ml-1 text-muted-foreground">
+                ({SUBSTEP_KIND_LABELS.reminder})
+              </span>
+            )}
+            {checklist.length > 0 && (
+              <span className="ml-1 text-muted-foreground">
+                · {checklist.length} checklist
+              </span>
+            )}
+          </span>
+        )
+      })}
       <Button
         type="button"
         variant="ghost"

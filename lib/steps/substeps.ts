@@ -6,6 +6,8 @@ export type SubstepDefinition = {
   sortOrder: number
   /** required = wajib selesai agar step unlock; reminder = self-reminder, tidak blok unlock */
   kind?: SubstepKind
+  /** If set, this sub-step cannot be marked done until the checklist is complete. */
+  checklist?: string[]
 }
 
 export type SubstepCompletion = {
@@ -46,11 +48,19 @@ export function parseSubsteps(raw: unknown): SubstepDefinition[] {
           ? record.sortOrder
           : parsed.length + 1
     if (!key || !label) continue
+    const checklistRaw = record.checklist_items ?? record.checklist
+    const checklist = Array.isArray(checklistRaw)
+      ? checklistRaw
+          .filter((item): item is string => typeof item === "string")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : []
     parsed.push({
       key,
       label,
       sortOrder,
       kind: parseSubstepKind(record.kind),
+      ...(checklist.length > 0 ? { checklist } : {}),
     })
   }
   return parsed.sort((a, b) => a.sortOrder - b.sortOrder)
@@ -62,7 +72,14 @@ export function serializeSubsteps(substeps: SubstepDefinition[]): unknown[] {
     label: substep.label,
     sort_order: substep.sortOrder || index + 1,
     kind: getSubstepKind(substep),
+    ...(getSubstepChecklist(substep).length > 0
+      ? { checklist_items: getSubstepChecklist(substep) }
+      : {}),
   }))
+}
+
+export function getSubstepChecklist(substep: SubstepDefinition): string[] {
+  return (substep.checklist ?? []).map((item) => item.trim()).filter(Boolean)
 }
 
 export function slugifySubstepKey(label: string): string {
