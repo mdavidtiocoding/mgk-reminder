@@ -15,6 +15,7 @@ import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
 import {
   areRequiredSubstepsComplete,
   canCompleteSubstepNow,
+  canUndoSubstepNow,
   getCompletedSubstepKeys,
   getSubstepChecklist,
   getSubstepKind,
@@ -25,7 +26,6 @@ import {
   validateChecklistResponses,
 } from "@/lib/steps/checklist-response"
 import {
-  isUserAdmin,
   resolveUserDivisions,
   userHasDivision,
 } from "@/lib/auth/user-divisions"
@@ -335,24 +335,11 @@ export async function undoSubstep(
     return { success: false, error: "Sub-step belum selesai." }
   }
 
-  const substepIndex = step.substeps.findIndex((s) => s.key === substepKey)
-  const hasLaterDoneRequired = step.substeps
-    .slice(substepIndex + 1)
-    .some((s) => getSubstepKind(s) === "required" && completedKeys.has(s.key))
-
-  if (hasLaterDoneRequired) {
+  if (!canUndoSubstepNow(substep, step.substeps, completedKeys)) {
     return {
       success: false,
-      error: "Batalkan sub-step wajib berikutnya terlebih dahulu.",
+      error: "Undo sub-step wajib berikutnya dulu, baru yang ini.",
     }
-  }
-
-  const row = (substepRows ?? []).find((r) => r.substep_key === substepKey)
-  if (
-    !isUserAdmin(userDivisions) &&
-    row?.completed_by !== user.id
-  ) {
-    return { success: false, error: "Hanya yang menyelesaikan atau admin yang bisa undo." }
   }
 
   const { error: deleteSubstepError } = await supabase

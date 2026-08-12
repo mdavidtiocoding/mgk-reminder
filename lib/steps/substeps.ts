@@ -162,3 +162,19 @@ export function canCompleteSubstepNow(
   if (getSubstepKind(substep) === "reminder") return true
   return getNextRequiredSubstep(substeps, completedKeys)?.key === substep.key
 }
+
+/** Undo the latest completed item first; later required sub-steps block earlier undo. */
+export function canUndoSubstepNow(
+  substep: SubstepDefinition,
+  substeps: SubstepDefinition[],
+  completedKeys: Set<string>
+): boolean {
+  if (!completedKeys.has(substep.key)) return false
+  const index = substeps.findIndex((item) => item.key === substep.key)
+  if (index < 0) return false
+  return !substeps
+    .slice(index + 1)
+    .some(
+      (item) => getSubstepKind(item) === "required" && completedKeys.has(item.key)
+    )
+}

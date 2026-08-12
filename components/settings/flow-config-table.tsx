@@ -580,11 +580,6 @@ function FlowConfigTableRow({
       <td className={cn(cell, "font-medium leading-snug")}>
         <span className="inline-flex flex-wrap items-center gap-1.5">
           {displayName}
-          {row.bastChoice && (
-            <span className="rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
-              BAST choice
-            </span>
-          )}
           {row.noteRoute?.enabled && (
             <span className="rounded-md border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-900">
               Ada/Tidak

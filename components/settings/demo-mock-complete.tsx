@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { CheckCircle2, RotateCcw } from "lucide-react"
+import { CheckCircle2, RotateCcw, Undo2 } from "lucide-react"
 
 import { StepChecklistFields } from "@/components/project/step-checklist-fields"
 import { Badge } from "@/components/ui/badge"
@@ -33,6 +33,7 @@ import { isNoteRouteEnabled, resolveNoteRouteTargets } from "@/lib/steps/note-ro
 import {
   areRequiredSubstepsComplete,
   canCompleteSubstepNow,
+  canUndoSubstepNow,
   getSubstepChecklist,
   getSubstepKind,
   type SubstepDefinition,
@@ -64,8 +65,6 @@ function MockSubstepFlow({ row }: { row: FlowConfigRow }) {
   const substeps = row.substeps
   const [doneKeys, setDoneKeys] = useState<Set<string>>(new Set())
   const [active, setActive] = useState<SubstepDefinition | null>(null)
-  const [eventDate, setEventDate] = useState(todayDateKeyWib())
-  const [note, setNote] = useState("")
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
   const [checklistItemNotes, setChecklistItemNotes] = useState<
     Record<string, string>
@@ -86,20 +85,41 @@ function MockSubstepFlow({ row }: { row: FlowConfigRow }) {
   function reset() {
     setDoneKeys(new Set())
     setActive(null)
-    setEventDate(todayDateKeyWib())
-    setNote("")
     setCheckedItems(new Set())
     setChecklistItemNotes({})
   }
 
-  function confirmActive() {
-    if (!active || !activeChecklistComplete) return
-    setDoneKeys((prev) => new Set(prev).add(active.key))
+  function markDone(substep: SubstepDefinition) {
+    setDoneKeys((prev) => new Set(prev).add(substep.key))
     setActive(null)
-    setEventDate(todayDateKeyWib())
-    setNote("")
     setCheckedItems(new Set())
     setChecklistItemNotes({})
+  }
+
+  function onSubstepClick(substep: SubstepDefinition) {
+    const checklist = getSubstepChecklist(substep)
+    if (checklist.length > 0) {
+      setActive(substep)
+      setCheckedItems(new Set())
+      setChecklistItemNotes({})
+      return
+    }
+    markDone(substep)
+  }
+
+  function confirmActive() {
+    if (!active || !activeChecklistComplete) return
+    markDone(active)
+  }
+
+  function undoDone(substep: SubstepDefinition) {
+    if (!canUndoSubstepNow(substep, substeps, doneKeys)) return
+    setDoneKeys((prev) => {
+      const next = new Set(prev)
+      next.delete(substep.key)
+      return next
+    })
+    setActive(null)
   }
 
   function toggleChecklistItem(item: string) {
@@ -123,9 +143,9 @@ function MockSubstepFlow({ row }: { row: FlowConfigRow }) {
       <div className="flex items-start justify-between gap-2">
         <p className="text-[11px] leading-snug text-muted-foreground">
           <span className="font-medium text-foreground">Sub-step</span> = rangkaian
-          aksi berurutan. Wajib harus urut. Tiap sub-step bisa punya checklist
-          sendiri — checklist itu harus selesai dulu baru sub-step bisa Simpan,
-          lalu yang berikutnya unlock.
+          aksi berurutan. Wajib harus urut. Klik = langsung tercatat. Salah klik
+          bisa Undo. Kalau ada checklist, checklist itu harus selesai dulu baru
+          sub-step bisa Simpan, lalu yang berikutnya unlock.
         </p>
         <Button
           type="button"
@@ -152,6 +172,7 @@ function MockSubstepFlow({ row }: { row: FlowConfigRow }) {
           const kind = getSubstepKind(substep)
           const checklist = getSubstepChecklist(substep)
           const actionable = canCompleteSubstepNow(substep, substeps, doneKeys)
+          const canUndo = canUndoSubstepNow(substep, substeps, doneKeys)
 
           return (
             <div
@@ -173,19 +194,31 @@ function MockSubstepFlow({ row }: { row: FlowConfigRow }) {
                   </Badge>
                 )}
                 {done ? (
-                  <Badge variant="secondary">{substep.label}</Badge>
+                  <>
+                    <Badge variant="secondary">{substep.label}</Badge>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="ml-auto h-7 px-2 text-xs"
+                      disabled={!canUndo}
+                      title={
+                        canUndo
+                          ? "Batalkan kalau salah klik"
+                          : "Undo sub-step wajib berikutnya dulu"
+                      }
+                      onClick={() => undoDone(substep)}
+                    >
+                      <Undo2 className="mr-1 size-3" />
+                      Undo
+                    </Button>
+                  </>
                 ) : actionable ? (
                   <Button
                     type="button"
                     size="sm"
                     variant={kind === "reminder" ? "outline" : "default"}
-                    onClick={() => {
-                      setActive(substep)
-                      setEventDate(todayDateKeyWib())
-                      setNote("")
-                      setCheckedItems(new Set())
-                      setChecklistItemNotes({})
-                    }}
+                    onClick={() => onSubstepClick(substep)}
                   >
                     {substep.label}
                   </Button>
@@ -205,9 +238,7 @@ function MockSubstepFlow({ row }: { row: FlowConfigRow }) {
         <div className="flex flex-col gap-2 rounded-md border bg-background p-3">
           <p className="text-sm font-medium">{active.label}</p>
           <p className="text-[11px] text-muted-foreground">
-            {activeChecklist.length > 0
-              ? "Checklist sub-step ini harus selesai dulu baru bisa Simpan."
-              : "Konfirmasi seperti di project: tanggal kejadian + catatan opsional."}
+            Checklist sub-step ini harus selesai dulu baru bisa Simpan.
             {getSubstepKind(active) === "reminder" &&
               " Reminder tidak memblokir step berikutnya."}
           </p>
@@ -223,22 +254,6 @@ function MockSubstepFlow({ row }: { row: FlowConfigRow }) {
               compact
             />
           )}
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Tanggal kejadian (opsional)</Label>
-            <Input
-              type="date"
-              value={eventDate}
-              onChange={(e) => setEventDate(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Catatan (opsional)</Label>
-            <Textarea
-              rows={2}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
-          </div>
           <div className="flex gap-2">
             <Button type="button" size="sm" variant="outline" onClick={() => setActive(null)}>
               Batal
