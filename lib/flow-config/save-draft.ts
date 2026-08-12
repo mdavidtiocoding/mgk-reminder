@@ -61,22 +61,42 @@ export async function saveFlowStepDraft(
   }
 
   const cleanedSubsteps = draft.substeps
-    .map((s, i) => ({
-      key: s.key.trim(),
-      label: s.label.trim(),
-      sortOrder: i + 1,
-      kind: s.kind ?? ("required" as const),
-      checklist: (s.checklist ?? []).map((item) => item.trim()).filter(Boolean),
-    }))
+    .map((s, i) => {
+      const checklist = (s.checklist ?? []).map((item) => item.trim()).filter(Boolean)
+      const checklistMode =
+        checklist.length > 0
+          ? s.checklistMode === "checklist"
+            ? ("checklist" as const)
+            : ("checklist_keterangan" as const)
+          : undefined
+      return {
+        key: s.key.trim(),
+        label: s.label.trim(),
+        sortOrder: i + 1,
+        kind: s.kind ?? ("required" as const),
+        checklist,
+        ...(checklistMode ? { checklistMode } : {}),
+      }
+    })
     .filter((s) => s.label)
   const cleanedOriginal = original.substeps
-    .map((s, i) => ({
-      key: s.key.trim(),
-      label: s.label.trim(),
-      sortOrder: i + 1,
-      kind: s.kind ?? ("required" as const),
-      checklist: (s.checklist ?? []).map((item) => item.trim()).filter(Boolean),
-    }))
+    .map((s, i) => {
+      const checklist = (s.checklist ?? []).map((item) => item.trim()).filter(Boolean)
+      const checklistMode =
+        checklist.length > 0
+          ? s.checklistMode === "checklist"
+            ? ("checklist" as const)
+            : ("checklist_keterangan" as const)
+          : undefined
+      return {
+        key: s.key.trim(),
+        label: s.label.trim(),
+        sortOrder: i + 1,
+        kind: s.kind ?? ("required" as const),
+        checklist,
+        ...(checklistMode ? { checklistMode } : {}),
+      }
+    })
     .filter((s) => s.label)
 
   if (JSON.stringify(cleanedSubsteps) !== JSON.stringify(cleanedOriginal)) {

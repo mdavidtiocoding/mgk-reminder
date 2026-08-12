@@ -1,5 +1,8 @@
 export type SubstepKind = "required" | "reminder"
 
+/** How checklist items must be completed on a sub-step. */
+export type SubstepChecklistMode = "checklist" | "checklist_keterangan"
+
 export type SubstepDefinition = {
   key: string
   label: string
@@ -8,6 +11,8 @@ export type SubstepDefinition = {
   kind?: SubstepKind
   /** If set, this sub-step cannot be marked done until the checklist is complete. */
   checklist?: string[]
+  /** checklist = all must be checked; checklist_keterangan = unchecked needs a note. */
+  checklistMode?: SubstepChecklistMode
 }
 
 export type SubstepCompletion = {
@@ -55,31 +60,62 @@ export function parseSubsteps(raw: unknown): SubstepDefinition[] {
           .map((item) => item.trim())
           .filter(Boolean)
       : []
+    const checklistMode = parseSubstepChecklistMode(record.checklist_mode ?? record.checklistMode)
     parsed.push({
       key,
       label,
       sortOrder,
       kind: parseSubstepKind(record.kind),
-      ...(checklist.length > 0 ? { checklist } : {}),
+      ...(checklist.length > 0
+        ? {
+            checklist,
+            checklistMode: checklistMode ?? "checklist_keterangan",
+          }
+        : {}),
     })
   }
   return parsed.sort((a, b) => a.sortOrder - b.sortOrder)
 }
 
 export function serializeSubsteps(substeps: SubstepDefinition[]): unknown[] {
-  return substeps.map((substep, index) => ({
-    key: substep.key,
-    label: substep.label,
-    sort_order: substep.sortOrder || index + 1,
-    kind: getSubstepKind(substep),
-    ...(getSubstepChecklist(substep).length > 0
-      ? { checklist_items: getSubstepChecklist(substep) }
-      : {}),
-  }))
+  return substeps.map((substep, index) => {
+    const checklist = getSubstepChecklist(substep)
+    const mode = getSubstepChecklistMode(substep)
+    return {
+      key: substep.key,
+      label: substep.label,
+      sort_order: substep.sortOrder || index + 1,
+      kind: getSubstepKind(substep),
+      ...(checklist.length > 0 && mode
+        ? {
+            checklist_items: checklist,
+            checklist_mode: mode,
+          }
+        : {}),
+    }
+  })
 }
 
 export function getSubstepChecklist(substep: SubstepDefinition): string[] {
   return (substep.checklist ?? []).map((item) => item.trim()).filter(Boolean)
+}
+
+export function parseSubstepChecklistMode(value: unknown): SubstepChecklistMode | null {
+  if (value === "checklist" || value === "checklist_keterangan") return value
+  return null
+}
+
+/** null = no checklist on this sub-step. */
+export function getSubstepChecklistMode(
+  substep: SubstepDefinition
+): SubstepChecklistMode | null {
+  const checklist = getSubstepChecklist(substep)
+  if (checklist.length === 0) return null
+  return parseSubstepChecklistMode(substep.checklistMode) ?? "checklist_keterangan"
+}
+
+export function substepAllowsItemNotes(substep: SubstepDefinition): boolean {
+  return getSubstepChecklistMode(substep) === "checklist_keterangan"
 }
 
 export function slugifySubstepKey(label: string): string {

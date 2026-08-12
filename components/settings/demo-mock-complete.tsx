@@ -35,6 +35,7 @@ import {
   canUndoSubstepNow,
   getSubstepChecklist,
   getSubstepKind,
+  substepAllowsItemNotes,
   type SubstepDefinition,
 } from "@/lib/steps/substeps"
 import { cn } from "@/lib/utils"
@@ -71,14 +72,18 @@ function MockSubstepFlow({ row }: { row: FlowConfigRow }) {
 
   const stepDone = areRequiredSubstepsComplete(substeps, doneKeys)
   const activeChecklist = active ? getSubstepChecklist(active) : []
+  const activeAllowItemNotes = active ? substepAllowsItemNotes(active) : false
   const activeChecklistComplete =
     activeChecklist.length === 0 ||
     activeChecklist.every((item) =>
-      isChecklistItemComplete({
-        item,
-        checked: checkedItems.has(item),
-        note: checklistItemNotes[item],
-      })
+      isChecklistItemComplete(
+        {
+          item,
+          checked: checkedItems.has(item),
+          note: checklistItemNotes[item],
+        },
+        { allowItemNotes: activeAllowItemNotes }
+      )
     )
 
   function reset() {
@@ -250,6 +255,7 @@ function MockSubstepFlow({ row }: { row: FlowConfigRow }) {
               onItemNoteChange={(item, value) =>
                 setChecklistItemNotes((prev) => ({ ...prev, [item]: value }))
               }
+              allowItemNotes={activeAllowItemNotes}
               compact
             />
           )}

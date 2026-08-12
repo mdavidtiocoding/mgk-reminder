@@ -9,11 +9,10 @@ import { COMPLETION_MODE_BADGES, COMPLETION_MODE_LABELS } from "@/lib/steps/comp
 import { cn } from "@/lib/utils"
 
 const LEGEND_ITEMS = [
-  { icon: "📋", label: "Step Normal", desc: "Tandai selesai biasa" },
-  { icon: "☑️", label: "Step Checklist", desc: "Semua item wajib dicentang" },
+  { icon: "☑️", label: "Checklist", desc: "Centang Pakai checklist, lalu pilih mode" },
   { icon: "☑️", label: "Checklist + Keterangan", desc: "Tidak dicentang = wajib isi keterangan" },
   { icon: "🔁", label: "Step reschedule", desc: "Selesai / Belum + pilih tanggal berikutnya" },
-  { icon: "🧩", label: "Sub-step", desc: "Tombol aksi berurutan dalam 1 step" },
+  { icon: "🧩", label: "Sub-step", desc: "Bisa punya checklist sendiri (tick + mode)" },
   { icon: "🔗", label: "Prasyarat", desc: "Step yang harus selesai dulu" },
   { icon: "⚡", label: "Memicu", desc: "Step yang aktif setelah ini selesai" },
   { icon: "📅", label: "Notif & kalender", desc: "Langsung saat step unlock" },

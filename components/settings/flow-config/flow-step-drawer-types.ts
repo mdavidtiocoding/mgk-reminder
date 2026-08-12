@@ -48,6 +48,7 @@ export function buildDraftFromRow(row: FlowConfigRow, displayName: string): Flow
     substeps: row.substeps.map((s) => ({
       ...s,
       checklist: [...(s.checklist ?? [])],
+      ...(s.checklistMode ? { checklistMode: s.checklistMode } : {}),
     })),
     trigger: row.trigger ?? stepDef?.trigger ?? { type: "immediate" },
     bastChoice: row.bastChoice ?? stepDef?.bastChoice ?? false,
@@ -96,6 +97,7 @@ function substepsEqual(a: SubstepDefinition[], b: SubstepDefinition[]): boolean 
       s.label === other.label &&
       s.sortOrder === other.sortOrder &&
       (s.kind ?? "required") === (other.kind ?? "required") &&
+      (s.checklistMode ?? null) === (other.checklistMode ?? null) &&
       aList.length === bList.length &&
       aList.every((item, idx) => item === bList[idx])
     )

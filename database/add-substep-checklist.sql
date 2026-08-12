@@ -11,4 +11,4 @@
 -- The next required sub-step stays locked until the previous one is done.
 
 COMMENT ON COLUMN public.step_definitions.substeps IS
-  'Ordered sub-actions: [{ "key", "label", "sort_order", "kind": "required"|"reminder", "checklist_items"?: string[] }, ...]';
+  'Ordered sub-actions: [{ "key", "label", "sort_order", "kind": "required"|"reminder", "checklist_items"?: string[], "checklist_mode"?: "checklist"|"checklist_keterangan" }, ...]';

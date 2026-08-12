@@ -34,11 +34,15 @@ import { DATE_FIELD_LABELS, type DateField } from "@/lib/steps"
 import {
   COMPLETION_MODE_DESCRIPTIONS,
   COMPLETION_MODE_LABELS,
-  STEP_COMPLETION_MODES,
   requiresChecklist,
   type StepCompletionMode,
 } from "@/lib/steps/completion-mode"
-import { slugifySubstepKey, SUBSTEP_KIND_LABELS, type SubstepKind } from "@/lib/steps/substeps"
+import {
+  slugifySubstepKey,
+  SUBSTEP_KIND_LABELS,
+  type SubstepChecklistMode,
+  type SubstepKind,
+} from "@/lib/steps/substeps"
 import { cn } from "@/lib/utils"
 
 export function FlowStepEditDrawer({
@@ -319,47 +323,90 @@ export function FlowStepEditDrawer({
 
             {!hasSubsteps && (
               <EditSection title="Mode Selesai & Checklist">
-                <Select
-                  value={draft.completionMode}
-                  onValueChange={(v) =>
-                    setDraft(
-                      (d) => d && { ...d, completionMode: v as StepCompletionMode }
-                    )
-                  }
-                  disabled={isPending}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STEP_COMPLETION_MODES.map((mode) => (
-                      <SelectItem key={mode} value={mode}>
-                        {COMPLETION_MODE_LABELS[mode]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {COMPLETION_MODE_DESCRIPTIONS[draft.completionMode]}
-                </p>
-                {requiresChecklist(draft.completionMode) && (
-                  <ChecklistEditor
-                    items={draft.checklistItems}
+                <label className="flex items-start gap-2.5 text-sm">
+                  <Checkbox
+                    checked={requiresChecklist(draft.completionMode)}
                     disabled={isPending}
-                    onChange={(items) =>
-                      setDraft((d) => d && { ...d, checklistItems: items })
+                    onCheckedChange={(checked) =>
+                      setDraft((d) => {
+                        if (!d) return d
+                        if (checked === true) {
+                          return {
+                            ...d,
+                            completionMode:
+                              d.completionMode === "checklist_keterangan"
+                                ? "checklist_keterangan"
+                                : "checklist",
+                          }
+                        }
+                        return {
+                          ...d,
+                          completionMode: "normal",
+                          checklistItems: [],
+                        }
+                      })
                     }
+                    className="mt-0.5"
                   />
+                  <span>
+                    <span className="font-medium">Pakai checklist</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      Centang dulu kalau step ini punya checklist saat mark done.
+                    </span>
+                  </span>
+                </label>
+                {requiresChecklist(draft.completionMode) ? (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <Label className="text-xs">Mode checklist</Label>
+                    <Select
+                      value={draft.completionMode}
+                      onValueChange={(v) =>
+                        setDraft(
+                          (d) =>
+                            d && {
+                              ...d,
+                              completionMode: v as StepCompletionMode,
+                            }
+                        )
+                      }
+                      disabled={isPending}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="checklist">
+                          {COMPLETION_MODE_LABELS.checklist}
+                        </SelectItem>
+                        <SelectItem value="checklist_keterangan">
+                          {COMPLETION_MODE_LABELS.checklist_keterangan}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {COMPLETION_MODE_DESCRIPTIONS[draft.completionMode]}
+                    </p>
+                    <ChecklistEditor
+                      items={draft.checklistItems}
+                      disabled={isPending}
+                      onChange={(items) =>
+                        setDraft((d) => d && { ...d, checklistItems: items })
+                      }
+                    />
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {COMPLETION_MODE_DESCRIPTIONS.normal}
+                  </p>
                 )}
               </EditSection>
             )}
 
             <EditSection title="Sub-step">
               <p className="text-xs text-muted-foreground">
-                Wajib dikerjakan berurutan. Tiap sub-step boleh punya checklist
-                sendiri — checklist itu harus selesai dulu baru sub-step bisa
-                ditandai done, lalu yang berikutnya unlock. Reminder = tidak
-                blok step berikutnya.
+                Wajib dikerjakan berurutan. Centang &quot;Pakai checklist&quot; per
+                sub-step kalau perlu — pilih mode Checklist atau Checklist +
+                Keterangan. Reminder = tidak blok step berikutnya.
               </p>
               <SubstepsForm
                 substeps={draft.substeps}
@@ -722,21 +769,103 @@ function SubstepsForm({
                 ×
               </Button>
             </div>
-            <div className="pl-0 sm:pl-6">
-              <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
-                Checklist sub-step ini (opsional)
-              </p>
-              <ChecklistEditor
-                items={row.checklist ?? []}
-                disabled={disabled}
-                onChange={(items) =>
-                  onChange(
-                    substeps.map((r, i) =>
-                      i === index ? { ...r, checklist: items } : r
+            <div className="flex flex-col gap-2 pl-0 sm:pl-6">
+              <label className="flex items-start gap-2.5 text-sm">
+                <Checkbox
+                  checked={
+                    row.checklistMode != null ||
+                    (row.checklist ?? []).length > 0
+                  }
+                  disabled={disabled}
+                  onCheckedChange={(checked) =>
+                    onChange(
+                      substeps.map((r, i) => {
+                        if (i !== index) return r
+                        if (checked === true) {
+                          return {
+                            ...r,
+                            checklistMode:
+                              r.checklistMode === "checklist_keterangan"
+                                ? "checklist_keterangan"
+                                : "checklist",
+                            checklist: r.checklist ?? [],
+                          }
+                        }
+                        return {
+                          ...r,
+                          checklistMode: undefined,
+                          checklist: [],
+                        }
+                      })
                     )
-                  )
-                }
-              />
+                  }
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">Pakai checklist</span>
+                  <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                    Checklist harus selesai dulu baru sub-step bisa ditandai done.
+                  </span>
+                </span>
+              </label>
+              {(row.checklistMode != null ||
+                (row.checklist ?? []).length > 0) && (
+                <div className="flex flex-col gap-2">
+                  <Label className="text-xs">Mode checklist</Label>
+                  <Select
+                    value={
+                      row.checklistMode === "checklist"
+                        ? "checklist"
+                        : "checklist_keterangan"
+                    }
+                    onValueChange={(value) =>
+                      onChange(
+                        substeps.map((r, i) =>
+                          i === index
+                            ? {
+                                ...r,
+                                checklistMode: value as SubstepChecklistMode,
+                              }
+                            : r
+                        )
+                      )
+                    }
+                    disabled={disabled}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="checklist">
+                        {COMPLETION_MODE_LABELS.checklist}
+                      </SelectItem>
+                      <SelectItem value="checklist_keterangan">
+                        {COMPLETION_MODE_LABELS.checklist_keterangan}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    {
+                      COMPLETION_MODE_DESCRIPTIONS[
+                        row.checklistMode === "checklist"
+                          ? "checklist"
+                          : "checklist_keterangan"
+                      ]
+                    }
+                  </p>
+                  <ChecklistEditor
+                    items={row.checklist ?? []}
+                    disabled={disabled}
+                    onChange={(items) =>
+                      onChange(
+                        substeps.map((r, i) =>
+                          i === index ? { ...r, checklist: items } : r
+                        )
+                      )
+                    }
+                  />
+                </div>
+              )}
             </div>
           </div>
         ))
@@ -754,7 +883,6 @@ function SubstepsForm({
               label: "",
               sortOrder: substeps.length + 1,
               kind: "required",
-              checklist: [],
             },
           ])
         }

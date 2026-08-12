@@ -18,6 +18,7 @@ import {
   getCompletedSubstepKeys,
   getSubstepChecklist,
   getSubstepKind,
+  substepAllowsItemNotes,
 } from "@/lib/steps/substeps"
 import {
   buildChecklistResponses,
@@ -155,7 +156,9 @@ export async function completeSubstep(
       options?.checkedItems ?? [],
       options?.checklistItemNotes ?? {}
     )
-    const checklistError = validateChecklistResponses(substepChecklist, responses)
+    const checklistError = validateChecklistResponses(substepChecklist, responses, {
+      allowItemNotes: substepAllowsItemNotes(substep),
+    })
     if (checklistError) {
       return { success: false, error: checklistError }
     }

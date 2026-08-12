@@ -25,6 +25,7 @@ import {
   getCompletedSubstepKeys,
   getSubstepChecklist,
   getSubstepKind,
+  substepAllowsItemNotes,
 } from "@/lib/steps/substeps"
 
 type SubstepActionsProps = {
@@ -110,14 +111,20 @@ export function SubstepActions({
   const pendingChecklist = pendingSubstep
     ? getSubstepChecklist(pendingSubstep)
     : []
+  const pendingAllowItemNotes = pendingSubstep
+    ? substepAllowsItemNotes(pendingSubstep)
+    : false
   const pendingChecklistComplete =
     pendingChecklist.length === 0 ||
     pendingChecklist.every((item) =>
-      isChecklistItemComplete({
-        item,
-        checked: checkedItems.has(item),
-        note: checklistItemNotes[item],
-      })
+      isChecklistItemComplete(
+        {
+          item,
+          checked: checkedItems.has(item),
+          note: checklistItemNotes[item],
+        },
+        { allowItemNotes: pendingAllowItemNotes }
+      )
     )
 
   function toggleChecklistItem(item: string) {
@@ -287,6 +294,7 @@ export function SubstepActions({
                 onItemNoteChange={(item, value) =>
                   setChecklistItemNotes((prev) => ({ ...prev, [item]: value }))
                 }
+                allowItemNotes={pendingAllowItemNotes}
                 compact
               />
             )}
