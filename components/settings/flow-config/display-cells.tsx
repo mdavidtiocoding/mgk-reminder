@@ -6,10 +6,8 @@ import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { StepDefinition } from "@/lib/steps"
-import { getTriggerBadges, describeTriggerFull } from "@/lib/steps/trigger-display"
 import type { SubstepDefinition } from "@/lib/steps/substeps"
 import { getSubstepChecklist, getSubstepKind, SUBSTEP_KIND_LABELS } from "@/lib/steps/substeps"
-import { cn } from "@/lib/utils"
 
 type NameLookup = Map<string, string>
 
@@ -172,31 +170,11 @@ export function SubstepDisplay({ substeps }: { substeps: SubstepDefinition[] }) 
   )
 }
 
-export function TriggerDisplay({ stepDef }: { stepDef?: StepDefinition }) {
-  if (!stepDef) {
-    return <span className="text-muted-foreground">—</span>
-  }
-
-  const badges = getTriggerBadges(stepDef.trigger)
-  const full = describeTriggerFull(stepDef)
-
+export function TriggerDisplay({ stepDef: _stepDef }: { stepDef?: StepDefinition }) {
   return (
-    <div className="flex flex-wrap gap-1" title={full}>
-      {badges.map((badge, i) => (
-        <span
-          key={`${badge.label}-${i}`}
-          className={cn(
-            "inline-flex items-center gap-0.5 rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
-            badge.variant === "repeat" && "border-violet-200 bg-violet-50 text-violet-800",
-            badge.variant === "muted" && "bg-muted text-muted-foreground",
-            !badge.variant && "bg-background"
-          )}
-        >
-          <span>{badge.icon}</span>
-          {badge.label}
-        </span>
-      ))}
-    </div>
+    <span className="text-xs text-muted-foreground" title="Saat step unlock: notif + kalender">
+      Saat unlock
+    </span>
   )
 }
 

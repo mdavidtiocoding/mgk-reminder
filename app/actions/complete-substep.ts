@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache"
 
 import { clearCalendarRemindersForStep, createStepUnlockCalendarEvents } from "@/lib/google/calendar"
-import { dateToDateKeyWib } from "@/lib/format"
 import { notifyDivisionForStep } from "@/lib/notifications/send"
 import {
   buildDoneCodes,
@@ -275,7 +274,6 @@ export async function completeSubstep(
         projectId,
         stepCode: activeStep.definition.code,
         actingUserId: user.id,
-        eventDate: activeStep.triggerAt ? dateToDateKeyWib(activeStep.triggerAt) : undefined,
       })
     }
   }

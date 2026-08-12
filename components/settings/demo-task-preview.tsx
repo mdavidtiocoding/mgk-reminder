@@ -100,7 +100,7 @@ export function DemoTaskPreview({
         <span className="font-medium text-foreground">mock test</span> (tidak
         tersimpan ke project). Klik{" "}
         <span className="font-medium text-foreground">Edit konfigurasi</span>{" "}
-        untuk ubah checklist, sub-step, mode selesai, atau trigger.
+        untuk ubah checklist, sub-step, atau mode selesai.
       </div>
 
       {toast && (
@@ -193,7 +193,7 @@ function DemoTaskCard({
             <CardTitle className="text-base leading-snug">{row.name}</CardTitle>
             <CardDescription className="flex items-center gap-1.5 text-xs">
               <Zap className="size-3 shrink-0" aria-hidden />
-              {row.triggerDescription}
+              Saat unlock: notif + kalender
             </CardDescription>
           </div>
           <Button size="sm" onClick={onEdit}>

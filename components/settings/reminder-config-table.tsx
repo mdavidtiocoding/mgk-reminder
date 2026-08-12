@@ -16,7 +16,6 @@ import {
 import { Switch } from "@/components/ui/switch"
 import {
   DIVISION_BADGE_STYLES,
-  describeTrigger,
   getDivisionLabel,
   getStep,
 } from "@/lib/steps"
@@ -171,7 +170,7 @@ function ReminderConfigTableRow({
         )}
       </td>
       <td className="px-3 py-2 text-xs text-muted-foreground italic">
-        {step ? describeTrigger(step) : "—"}
+        Saat unlock
       </td>
       <td className="px-3 py-2 text-center">
         <Switch

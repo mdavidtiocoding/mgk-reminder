@@ -64,8 +64,8 @@ export default async function ReminderSettingsPage() {
           <CardHeader>
             <CardTitle>Konfigurasi per Step</CardTitle>
             <CardDescription>
-              Trigger (kapan reminder pertama kali aktif) mengikuti flow MOM
-              di kode dan bersifat read-only. Step &amp; follow-up reminder
+              Saat step unlock: notif + kalender langsung. Di sini atur repeat
+              tiap N hari, max repeat, dan channel. Step &amp; follow-up reminder
               dicek tiap ~2 jam, hogger check harian pukul{" "}
               {CRON_SCHEDULE_WIB}. Perubahan tersimpan otomatis.
             </CardDescription>

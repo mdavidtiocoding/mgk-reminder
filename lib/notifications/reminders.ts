@@ -105,10 +105,9 @@ export async function runDailyReminders(supabase: SupabaseClient) {
 /**
  * Step-level reminders — runs every ~2 hours (see vercel.json; Vercel Hobby
  * only allows once-per-day per cron entry, so we stack several daily entries
- * at different hours to approximate a frequent check). Sends the first
- * notification once a step's trigger date is reached (immediate / after_step
- * / before_date / after_date), then repeats per reminder_config.repeat_days
- * (falling back to the step's own default repeat, if any) up to max_repeats.
+ * at different hours to approximate a frequent check). First ping happens on
+ * unlock (notif + calendar). This job repeats per reminder_config.repeat_days
+ * (falling back to the step default, if any) up to max_repeats.
  */
 export async function runStepReminders(supabase: SupabaseClient) {
   const [{ data: projects }, runtimeSteps] = await Promise.all([
@@ -122,7 +121,6 @@ export async function runStepReminders(supabase: SupabaseClient) {
   )
 
   let remindersSent = 0
-  const now = Date.now()
   const substepMap = await loadSubstepCompletionsMap(
     supabase,
     ((projects ?? []) as ProjectRow[]).map((project) => project.id)
@@ -150,7 +148,7 @@ export async function runStepReminders(supabase: SupabaseClient) {
     for (const active of getActiveComputedSteps(computedSteps)) {
       const config = configMap.get(active.definition.code)
       if (config?.enabled === false) continue
-      if (!active.triggerAt || now < active.triggerAt.getTime()) continue
+      if (!active.unlockedAt) continue
 
       const { data: logs } = await supabase
         .from("reminder_log")

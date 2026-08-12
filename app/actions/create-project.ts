@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 
 import { assertPermission } from "@/lib/auth/require-permission"
 import { resolveActorName, writeAuditLog } from "@/lib/audit/log"
+import { createStepUnlockCalendarEvents } from "@/lib/google/calendar"
 import { notifyDivisionForStep } from "@/lib/notifications/send"
 
 export type CreateProjectResult =
@@ -83,6 +84,11 @@ export async function createProject(formData: FormData): Promise<CreateProjectRe
     projectName: name,
     stepCode: "M1",
     type: "step_unlock",
+  })
+  await createStepUnlockCalendarEvents({
+    projectId: project.id,
+    stepCode: "M1",
+    actingUserId: user.id,
   })
 
   revalidatePath("/")

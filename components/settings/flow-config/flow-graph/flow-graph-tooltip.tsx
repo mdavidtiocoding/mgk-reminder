@@ -32,7 +32,7 @@ export function FlowGraphTooltip({
 
       <div className="mt-3 space-y-2 border-t pt-2 text-[11px]">
         <div>
-          <p className="font-semibold text-foreground">Trigger</p>
+          <p className="font-semibold text-foreground">Notif</p>
           <p className="text-muted-foreground">{triggerSummary || "—"}</p>
         </div>
         <div>

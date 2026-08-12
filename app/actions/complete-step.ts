@@ -459,7 +459,6 @@ export async function completeStep(
       projectId,
       stepCode: activeStep.definition.code,
       actingUserId: user.id,
-      eventDate: activeStep.triggerAt ? dateToDateKeyWib(activeStep.triggerAt) : undefined,
     })
   }
 

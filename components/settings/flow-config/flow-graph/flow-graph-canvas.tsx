@@ -23,8 +23,6 @@ import {
   getAllCollapsibleCodes,
   type FlowStepNodeData,
 } from "@/lib/flow-config/graph-layout"
-import { getStep } from "@/lib/steps"
-import { describeTriggerFull } from "@/lib/steps/trigger-display"
 import { cn } from "@/lib/utils"
 
 type FlowGraphCanvasProps = {
@@ -59,8 +57,7 @@ function FlowGraphCanvasInner({
   const triggerSummaryByCode = useMemo(() => {
     const map = new Map<string, string>()
     for (const row of rows) {
-      const stepDef = getStep(row.code)
-      map.set(row.code, stepDef ? describeTriggerFull(stepDef) : row.triggerDescription)
+      map.set(row.code, "Saat unlock: notif + kalender")
     }
     return map
   }, [rows])

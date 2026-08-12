@@ -11,7 +11,6 @@ import {
   type FlowStepDraft,
   type FlowStepDrawerHandlers,
 } from "@/components/settings/flow-config/flow-step-drawer-types"
-import { TriggerEditor } from "@/components/settings/flow-config/trigger-editor"
 import type { FlowConfigRow } from "@/components/settings/flow-config-table"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -189,15 +188,6 @@ export function FlowStepEditDrawer({
                 onChange={(codes) =>
                   setDraft((d) => d && { ...d, unlocksSteps: codes })
                 }
-              />
-            </EditSection>
-
-            <EditSection title="Trigger & Reminder">
-              <TriggerEditor
-                value={draft.trigger}
-                onChange={(trigger) => setDraft((d) => d && { ...d, trigger })}
-                stepOptions={allStepOptions}
-                disabled={isPending}
               />
             </EditSection>
 

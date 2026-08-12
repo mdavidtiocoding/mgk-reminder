@@ -6,7 +6,6 @@ import { useState } from "react"
 import {
   DependencyDisplay,
   SubstepDisplay,
-  TriggerDisplay,
   UnlockDisplay,
 } from "@/components/settings/flow-config/display-cells"
 import { DuplicateStepDialog } from "@/components/settings/flow-config/duplicate-step-dialog"
@@ -33,8 +32,6 @@ import {
   COMPLETION_MODE_LABELS,
   type StepCompletionMode,
 } from "@/lib/steps/completion-mode"
-import { getStep } from "@/lib/steps"
-import { describeTriggerFull } from "@/lib/steps/trigger-display"
 import { cn } from "@/lib/utils"
 
 function ReadOnlySection({
@@ -81,8 +78,6 @@ export function FlowStepViewDrawer({
 
   if (!row) return null
 
-  const stepDef = getStep(row.code)
-
   async function handleReset() {
     setResetting(true)
     const ok = await onResetStep()
@@ -114,13 +109,11 @@ export function FlowStepViewDrawer({
               <UnlockDisplay codes={row.unlocksSteps} names={nameLookup} />
             </ReadOnlySection>
 
-            <ReadOnlySection title="Trigger & Reminder">
-              <TriggerDisplay stepDef={stepDef} />
-              {stepDef && (
-                <p className="mt-2 text-xs text-muted-foreground italic">
-                  {describeTriggerFull(stepDef)}
-                </p>
-              )}
+            <ReadOnlySection title="Notif & kalender">
+              <p className="text-sm">Saat unlock: notif + kalender langsung.</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Repeat tiap N hari diatur di Settings → Reminder.
+              </p>
             </ReadOnlySection>
 
             <ReadOnlySection title="Step reschedule">

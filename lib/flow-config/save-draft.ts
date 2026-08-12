@@ -7,13 +7,11 @@ import {
   updateStepOutcomeConfig,
   updateStepPrerequisites,
   updateStepSubsteps,
-  updateStepTriggerConfig,
   updateStepUnlocks,
 } from "@/app/actions/flow-config"
 import { updateStepDefinitionName } from "@/app/actions/settings"
 import type { FlowStepDraft } from "@/components/settings/flow-config/flow-step-drawer-types"
 import { noteRouteConfigsEqual } from "@/lib/steps/note-route-config"
-import { triggerConfigsEqual } from "@/lib/steps/trigger-config"
 
 type SaveResult = { success: true } | { success: false; error: string }
 
@@ -83,12 +81,6 @@ export async function saveFlowStepDraft(
 
   if (JSON.stringify(cleanedSubsteps) !== JSON.stringify(cleanedOriginal)) {
     await runSave(errors, () => updateStepSubsteps(stepCode, cleanedSubsteps))
-  }
-
-  if (!triggerConfigsEqual(draft.trigger, original.trigger)) {
-    await runSave(errors, () =>
-      updateStepTriggerConfig(stepCode, draft.trigger as unknown as Record<string, unknown>)
-    )
   }
 
   if (draft.bastChoice !== original.bastChoice) {

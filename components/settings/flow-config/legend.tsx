@@ -16,8 +16,8 @@ const LEGEND_ITEMS = [
   { icon: "🧩", label: "Sub-step", desc: "Tombol aksi berurutan dalam 1 step" },
   { icon: "🔗", label: "Prasyarat", desc: "Step yang harus selesai dulu" },
   { icon: "⚡", label: "Memicu", desc: "Step yang aktif setelah ini selesai" },
-  { icon: "⏰", label: "Trigger", desc: "Kapan reminder pertama jalan" },
-  { icon: "🔁", label: "Repeat", desc: "Reminder berulang" },
+  { icon: "📅", label: "Notif & kalender", desc: "Langsung saat step unlock" },
+  { icon: "🔁", label: "Repeat", desc: "Tiap N hari — Settings → Reminder" },
   { icon: "✏️", label: "Klik baris", desc: "Buka panel edit semua pengaturan" },
 ] as const
 
