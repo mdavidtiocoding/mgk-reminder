@@ -19,10 +19,12 @@ export function isBetaApp(): boolean {
   return getAppVariant() === "beta"
 }
 
+/**
+ * @deprecated Demo accounts sekarang dikontrol switcher Demo/Live di login page
+ * (cookie mgk-login-mode). Helper ini tidak lagi dipakai untuk gating UI.
+ */
 export function showDemoLoginAccounts(): boolean {
-  // Sementara: demo tetap di production selama akun @dummy.com masih dipakai.
-  // Matikan nanti dengan return isBetaApp() atau env NEXT_PUBLIC_SHOW_DEMO_LOGIN=false.
-  return true
+  return false
 }
 
 export function getAppVariantBadgeLabel(): string | null {

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { getAppThresholds } from "@/lib/app-config"
+import { isDemoLoginMode } from "@/lib/app-login-mode.server"
 import { getPermissionContext } from "@/lib/auth/require-permission"
 import { getUiTheme } from "@/lib/ui/theme.server"
 
@@ -46,7 +47,8 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   const thresholds = permissions.settings_app_config
     ? await getAppThresholds(supabase)
     : null
-  const theme = await getUiTheme()
+  const demoMode = await isDemoLoginMode()
+  const theme = demoMode ? await getUiTheme() : null
   const showAdminSection =
     permissions.settings_app_config ||
     permissions.settings_users ||
@@ -65,18 +67,20 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-6">
         <h2 className="text-base font-medium">Settings</h2>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Tampilan UI</CardTitle>
-            <CardDescription>
-              Pilih Classic (default) atau Premium (preview redesign). Bisa
-              diubah kapan saja — logout tidak perlu.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ThemePicker initialTheme={theme} />
-          </CardContent>
-        </Card>
+        {demoMode && theme && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Tampilan UI</CardTitle>
+              <CardDescription>
+                Mode Demo — pilih Classic atau Premium. Di Live, Classic
+                disembunyikan (selalu Premium).
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ThemePicker initialTheme={theme} />
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
