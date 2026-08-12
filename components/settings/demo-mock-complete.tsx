@@ -64,56 +64,28 @@ export function DemoMockComplete({ row }: DemoMockCompleteProps) {
 function MockSubstepFlow({ row }: { row: FlowConfigRow }) {
   const substeps = row.substeps
   const [doneKeys, setDoneKeys] = useState<Set<string>>(new Set())
-  const [active, setActive] = useState<SubstepDefinition | null>(null)
-  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
-  const [checklistItemNotes, setChecklistItemNotes] = useState<
-    Record<string, string>
+  const [checklistDrafts, setChecklistDrafts] = useState<
+    Record<string, { checked: Set<string>; notes: Record<string, string> }>
   >({})
 
   const stepDone = areRequiredSubstepsComplete(substeps, doneKeys)
-  const activeChecklist = active ? getSubstepChecklist(active) : []
-  const activeAllowItemNotes = active ? substepAllowsItemNotes(active) : false
-  const activeChecklistComplete =
-    activeChecklist.length === 0 ||
-    activeChecklist.every((item) =>
-      isChecklistItemComplete(
-        {
-          item,
-          checked: checkedItems.has(item),
-          note: checklistItemNotes[item],
-        },
-        { allowItemNotes: activeAllowItemNotes }
-      )
-    )
 
   function reset() {
     setDoneKeys(new Set())
-    setActive(null)
-    setCheckedItems(new Set())
-    setChecklistItemNotes({})
+    setChecklistDrafts({})
+  }
+
+  function getDraft(key: string) {
+    return checklistDrafts[key] ?? { checked: new Set<string>(), notes: {} }
   }
 
   function markDone(substep: SubstepDefinition) {
     setDoneKeys((prev) => new Set(prev).add(substep.key))
-    setActive(null)
-    setCheckedItems(new Set())
-    setChecklistItemNotes({})
-  }
-
-  function onSubstepClick(substep: SubstepDefinition) {
-    const checklist = getSubstepChecklist(substep)
-    if (checklist.length > 0) {
-      setActive(substep)
-      setCheckedItems(new Set())
-      setChecklistItemNotes({})
-      return
-    }
-    markDone(substep)
-  }
-
-  function confirmActive() {
-    if (!active || !activeChecklistComplete) return
-    markDone(active)
+    setChecklistDrafts((prev) => {
+      const next = { ...prev }
+      delete next[substep.key]
+      return next
+    })
   }
 
   function undoDone(substep: SubstepDefinition) {
@@ -123,23 +95,37 @@ function MockSubstepFlow({ row }: { row: FlowConfigRow }) {
       next.delete(substep.key)
       return next
     })
-    setActive(null)
   }
 
-  function toggleChecklistItem(item: string) {
-    setCheckedItems((prev) => {
-      const next = new Set(prev)
-      if (next.has(item)) next.delete(item)
+  function toggleChecklistItem(substepKey: string, item: string) {
+    setChecklistDrafts((prev) => {
+      const draft = prev[substepKey] ?? { checked: new Set<string>(), notes: {} }
+      const checked = new Set(draft.checked)
+      const notes = { ...draft.notes }
+      if (checked.has(item)) checked.delete(item)
       else {
-        next.add(item)
-        setChecklistItemNotes((notes) => {
-          if (!notes[item]) return notes
-          const { [item]: _removed, ...rest } = notes
-          return rest
-        })
+        checked.add(item)
+        delete notes[item]
       }
-      return next
+      return { ...prev, [substepKey]: { checked, notes } }
     })
+  }
+
+  function isDraftComplete(substep: SubstepDefinition): boolean {
+    const checklist = getSubstepChecklist(substep)
+    if (checklist.length === 0) return true
+    const draft = getDraft(substep.key)
+    const allowItemNotes = substepAllowsItemNotes(substep)
+    return checklist.every((item) =>
+      isChecklistItemComplete(
+        {
+          item,
+          checked: draft.checked.has(item),
+          note: draft.notes[item],
+        },
+        { allowItemNotes }
+      )
+    )
   }
 
   return (
@@ -147,9 +133,9 @@ function MockSubstepFlow({ row }: { row: FlowConfigRow }) {
       <div className="flex items-start justify-between gap-2">
         <p className="text-[11px] leading-snug text-muted-foreground">
           <span className="font-medium text-foreground">Sub-step</span> = rangkaian
-          aksi berurutan. Wajib harus urut. Klik = langsung tercatat. Salah klik
-          bisa Undo. Kalau ada checklist, checklist itu harus selesai dulu baru
-          sub-step bisa Simpan, lalu yang berikutnya unlock.
+          aksi berurutan. Wajib harus urut. Tanpa checklist: klik langsung
+          tercatat. Dengan checklist: centang dulu, baru tombol di bawah aktif.
+          Salah klik bisa Undo.
         </p>
         <Button
           type="button"
@@ -175,26 +161,25 @@ function MockSubstepFlow({ row }: { row: FlowConfigRow }) {
           const done = doneKeys.has(substep.key)
           const kind = getSubstepKind(substep)
           const checklist = getSubstepChecklist(substep)
+          const hasChecklist = checklist.length > 0
           const actionable = canCompleteSubstepNow(substep, substeps, doneKeys)
           const canUndo = canUndoSubstepNow(substep, substeps, doneKeys)
+          const draft = getDraft(substep.key)
+          const checklistComplete = isDraftComplete(substep)
+          const allowItemNotes = substepAllowsItemNotes(substep)
 
           return (
             <div
               key={substep.key}
-              className="flex flex-col gap-1 rounded-md border bg-background px-3 py-2"
+              className="flex flex-col gap-2 rounded-md border bg-background px-3 py-2"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[10px] tabular-nums text-muted-foreground">
                   {index + 1}.
                 </span>
-                {kind === "reminder" && (
+                {kind === "reminder" && !done && (
                   <Badge variant="outline" className="text-[10px]">
                     Reminder
-                  </Badge>
-                )}
-                {!done && checklist.length > 0 && (
-                  <Badge variant="outline" className="text-[10px]">
-                    {checklist.length} checklist
                   </Badge>
                 )}
                 {done ? (
@@ -218,14 +203,18 @@ function MockSubstepFlow({ row }: { row: FlowConfigRow }) {
                     </Button>
                   </>
                 ) : actionable ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={kind === "reminder" ? "outline" : "default"}
-                    onClick={() => onSubstepClick(substep)}
-                  >
-                    {substep.label}
-                  </Button>
+                  hasChecklist ? (
+                    <span className="text-sm font-medium">{substep.label}</span>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={kind === "reminder" ? "outline" : "default"}
+                      onClick={() => markDone(substep)}
+                    >
+                      {substep.label}
+                    </Button>
+                  )
                 ) : (
                   <span className="text-sm text-muted-foreground">
                     {substep.label}
@@ -233,47 +222,48 @@ function MockSubstepFlow({ row }: { row: FlowConfigRow }) {
                   </span>
                 )}
               </div>
+
+              {!done && actionable && hasChecklist && (
+                <>
+                  <StepChecklistFields
+                    checklist={checklist}
+                    checkedItems={draft.checked}
+                    checklistItemNotes={draft.notes}
+                    onToggleItem={(item) => toggleChecklistItem(substep.key, item)}
+                    onItemNoteChange={(item, value) =>
+                      setChecklistDrafts((prev) => {
+                        const d = prev[substep.key] ?? {
+                          checked: new Set<string>(),
+                          notes: {},
+                        }
+                        return {
+                          ...prev,
+                          [substep.key]: {
+                            checked: d.checked,
+                            notes: { ...d.notes, [item]: value },
+                          },
+                        }
+                      })
+                    }
+                    allowItemNotes={allowItemNotes}
+                    compact
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={kind === "reminder" ? "outline" : "default"}
+                    className="w-fit"
+                    disabled={!checklistComplete}
+                    onClick={() => markDone(substep)}
+                  >
+                    {substep.label} (mock)
+                  </Button>
+                </>
+              )}
             </div>
           )
         })}
       </div>
-
-      {active && (
-        <div className="flex flex-col gap-2 rounded-md border bg-background p-3">
-          <p className="text-sm font-medium">{active.label}</p>
-          <p className="text-[11px] text-muted-foreground">
-            Checklist sub-step ini harus selesai dulu baru bisa Simpan.
-            {getSubstepKind(active) === "reminder" &&
-              " Reminder tidak memblokir step berikutnya."}
-          </p>
-          {activeChecklist.length > 0 && (
-            <StepChecklistFields
-              checklist={activeChecklist}
-              checkedItems={checkedItems}
-              checklistItemNotes={checklistItemNotes}
-              onToggleItem={toggleChecklistItem}
-              onItemNoteChange={(item, value) =>
-                setChecklistItemNotes((prev) => ({ ...prev, [item]: value }))
-              }
-              allowItemNotes={activeAllowItemNotes}
-              compact
-            />
-          )}
-          <div className="flex gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={() => setActive(null)}>
-              Batal
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={confirmActive}
-              disabled={!activeChecklistComplete}
-            >
-              Simpan (mock)
-            </Button>
-          </div>
-        </div>
-      )}
 
       {stepDone && (
         <p className="flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-900">

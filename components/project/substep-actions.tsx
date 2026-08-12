@@ -8,14 +8,6 @@ import { completeSubstep, undoSubstep } from "@/app/actions/complete-substep"
 import { StepChecklistFields } from "@/components/project/step-checklist-fields"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { formatDateKey, formatDateTime } from "@/lib/format"
 import type { SubstepDefinition, SubstepCompletion } from "@/lib/steps/substeps"
 import { isChecklistItemComplete } from "@/lib/steps/checklist-response"
@@ -36,6 +28,31 @@ type SubstepActionsProps = {
   canEdit: boolean
 }
 
+type ChecklistDraft = {
+  checked: Set<string>
+  notes: Record<string, string>
+}
+
+const EMPTY_DRAFT: ChecklistDraft = { checked: new Set(), notes: {} }
+
+function isChecklistComplete(
+  checklist: string[],
+  draft: ChecklistDraft,
+  allowItemNotes: boolean
+): boolean {
+  if (checklist.length === 0) return true
+  return checklist.every((item) =>
+    isChecklistItemComplete(
+      {
+        item,
+        checked: draft.checked.has(item),
+        note: draft.notes[item],
+      },
+      { allowItemNotes }
+    )
+  )
+}
+
 export function SubstepActions({
   projectId,
   stepCode,
@@ -46,9 +63,7 @@ export function SubstepActions({
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const [pendingSubstep, setPendingSubstep] = useState<SubstepDefinition | null>(null)
-  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
-  const [checklistItemNotes, setChecklistItemNotes] = useState<Record<string, string>>({})
+  const [checklistDrafts, setChecklistDrafts] = useState<Record<string, ChecklistDraft>>({})
   const [optimistic, setOptimistic] = useState<Record<string, boolean>>({})
 
   const completionSignature = completions
@@ -58,6 +73,7 @@ export function SubstepActions({
 
   useEffect(() => {
     setOptimistic({})
+    setChecklistDrafts({})
   }, [completionSignature])
 
   const completedKeys = useMemo(() => {
@@ -73,15 +89,41 @@ export function SubstepActions({
 
   const stepCompletions = completions.filter((c) => c.stepCode === stepCode)
 
-  function closeConfirm() {
-    if (isPending) return
-    setPendingSubstep(null)
+  function getDraft(substepKey: string): ChecklistDraft {
+    return checklistDrafts[substepKey] ?? EMPTY_DRAFT
   }
 
-  function markDone(substep: SubstepDefinition, checklistOptions?: {
-    checkedItems?: string[]
-    checklistItemNotes?: Record<string, string>
-  }) {
+  function updateDraft(
+    substepKey: string,
+    updater: (draft: ChecklistDraft) => ChecklistDraft
+  ) {
+    setChecklistDrafts((prev) => ({
+      ...prev,
+      [substepKey]: updater(prev[substepKey] ?? EMPTY_DRAFT),
+    }))
+  }
+
+  function toggleChecklistItem(substepKey: string, item: string) {
+    updateDraft(substepKey, (draft) => {
+      const checked = new Set(draft.checked)
+      const notes = { ...draft.notes }
+      if (checked.has(item)) {
+        checked.delete(item)
+      } else {
+        checked.add(item)
+        delete notes[item]
+      }
+      return { checked, notes }
+    })
+  }
+
+  function markDone(
+    substep: SubstepDefinition,
+    checklistOptions?: {
+      checkedItems?: string[]
+      checklistItemNotes?: Record<string, string>
+    }
+  ) {
     setError(null)
     setOptimistic((prev) => ({ ...prev, [substep.key]: true }))
     startTransition(async () => {
@@ -91,63 +133,12 @@ export function SubstepActions({
         setError(result.error)
         return
       }
-      setPendingSubstep(null)
+      setChecklistDrafts((prev) => {
+        const next = { ...prev }
+        delete next[substep.key]
+        return next
+      })
       router.refresh()
-    })
-  }
-
-  function onSubstepClick(substep: SubstepDefinition) {
-    const checklist = getSubstepChecklist(substep)
-    if (checklist.length > 0) {
-      setError(null)
-      setCheckedItems(new Set())
-      setChecklistItemNotes({})
-      setPendingSubstep(substep)
-      return
-    }
-    markDone(substep)
-  }
-
-  const pendingChecklist = pendingSubstep
-    ? getSubstepChecklist(pendingSubstep)
-    : []
-  const pendingAllowItemNotes = pendingSubstep
-    ? substepAllowsItemNotes(pendingSubstep)
-    : false
-  const pendingChecklistComplete =
-    pendingChecklist.length === 0 ||
-    pendingChecklist.every((item) =>
-      isChecklistItemComplete(
-        {
-          item,
-          checked: checkedItems.has(item),
-          note: checklistItemNotes[item],
-        },
-        { allowItemNotes: pendingAllowItemNotes }
-      )
-    )
-
-  function toggleChecklistItem(item: string) {
-    setCheckedItems((prev) => {
-      const next = new Set(prev)
-      if (next.has(item)) next.delete(item)
-      else {
-        next.add(item)
-        setChecklistItemNotes((notes) => {
-          if (!notes[item]) return notes
-          const { [item]: _removed, ...rest } = notes
-          return rest
-        })
-      }
-      return next
-    })
-  }
-
-  function handleConfirm() {
-    if (!pendingSubstep || !pendingChecklistComplete) return
-    markDone(pendingSubstep, {
-      checkedItems: Array.from(checkedItems),
-      checklistItemNotes,
     })
   }
 
@@ -166,160 +157,149 @@ export function SubstepActions({
   }
 
   return (
-    <>
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-col gap-1.5">
-          {substeps.map((substep) => {
-            const done = completedKeys.has(substep.key)
-            const completion = stepCompletions.find((c) => c.substepKey === substep.key)
-            const kind = getSubstepKind(substep)
-            const checklist = getSubstepChecklist(substep)
-            const actionable =
-              canEdit && canCompleteSubstepNow(substep, substeps, completedKeys)
-            const canUndo =
-              canEdit && canUndoSubstepNow(substep, substeps, completedKeys)
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1.5">
+        {substeps.map((substep) => {
+          const done = completedKeys.has(substep.key)
+          const completion = stepCompletions.find((c) => c.substepKey === substep.key)
+          const kind = getSubstepKind(substep)
+          const checklist = getSubstepChecklist(substep)
+          const hasChecklist = checklist.length > 0
+          const allowItemNotes = substepAllowsItemNotes(substep)
+          const actionable =
+            canEdit && canCompleteSubstepNow(substep, substeps, completedKeys)
+          const canUndo =
+            canEdit && canUndoSubstepNow(substep, substeps, completedKeys)
+          const draft = getDraft(substep.key)
+          const checklistComplete = isChecklistComplete(
+            checklist,
+            draft,
+            allowItemNotes
+          )
 
-            return (
-              <div
-                key={substep.key}
-                className="flex flex-col gap-1 rounded-md border px-3 py-2"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  {kind === "reminder" && !done && (
-                    <Badge variant="outline" className="text-[10px]">
-                      Reminder
-                    </Badge>
-                  )}
-                  {!done && checklist.length > 0 && (
-                    <Badge variant="outline" className="text-[10px]">
-                      {checklist.length} checklist
-                    </Badge>
-                  )}
-                  {done ? (
-                    <>
-                      <Badge variant="secondary">{substep.label}</Badge>
-                      {completion?.completedByName && (
-                        <span className="text-xs text-muted-foreground">
-                          oleh {completion.completedByName}
-                        </span>
-                      )}
-                      {canEdit && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="ml-auto h-7 px-2 text-xs"
-                          disabled={isPending || !canUndo}
-                          title={
-                            canUndo
-                              ? "Batalkan kalau salah klik"
-                              : "Undo sub-step wajib berikutnya dulu"
-                          }
-                          onClick={() => handleUndo(substep.key)}
-                        >
-                          <Undo2 className="mr-1 size-3" />
-                          Undo
-                        </Button>
-                      )}
-                    </>
-                  ) : actionable ? (
+          return (
+            <div
+              key={substep.key}
+              className="flex flex-col gap-2 rounded-md border px-3 py-2"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                {kind === "reminder" && !done && (
+                  <Badge variant="outline" className="text-[10px]">
+                    Reminder
+                  </Badge>
+                )}
+                {done ? (
+                  <>
+                    <Badge variant="secondary">{substep.label}</Badge>
+                    {completion?.completedByName && (
+                      <span className="text-xs text-muted-foreground">
+                        oleh {completion.completedByName}
+                      </span>
+                    )}
+                    {canEdit && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="ml-auto h-7 px-2 text-xs"
+                        disabled={isPending || !canUndo}
+                        title={
+                          canUndo
+                            ? "Batalkan kalau salah klik"
+                            : "Undo sub-step wajib berikutnya dulu"
+                        }
+                        onClick={() => handleUndo(substep.key)}
+                      >
+                        <Undo2 className="mr-1 size-3" />
+                        Undo
+                      </Button>
+                    )}
+                  </>
+                ) : actionable ? (
+                  hasChecklist ? (
+                    <span className="text-sm font-medium">{substep.label}</span>
+                  ) : (
                     <Button
                       type="button"
                       size="sm"
                       variant={kind === "reminder" ? "outline" : "default"}
                       disabled={isPending}
-                      onClick={() => onSubstepClick(substep)}
+                      onClick={() => markDone(substep)}
                     >
                       {substep.label}
                     </Button>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">{substep.label}</span>
-                  )}
-                </div>
-                {done && (
-                  <div className="text-xs text-muted-foreground">
-                    <p>
-                      Dicatat:{" "}
-                      {completion
-                        ? formatDateTime(completion.completedAt)
-                        : "baru saja"}
-                    </p>
-                    {completion?.eventDate && (
-                      <p>Tanggal: {formatDateKey(completion.eventDate)}</p>
-                    )}
-                    {completion?.note && (
-                      <p className="whitespace-pre-wrap italic">
-                        {completion.note}
-                      </p>
-                    )}
-                  </div>
+                  )
+                ) : (
+                  <span className="text-sm text-muted-foreground">{substep.label}</span>
                 )}
               </div>
-            )
-          })}
-        </div>
-        {error && !pendingSubstep && (
-          <p className="text-sm text-destructive" role="alert">
-            {error}
-          </p>
-        )}
-        {canEdit && completedKeys.size > 0 && (
-          <p className="text-[11px] text-muted-foreground">
-            Salah klik? tekan Undo. Kalau sudah lanjut ke sub-step wajib berikutnya, undo yang itu dulu.
-          </p>
-        )}
+
+              {!done && actionable && hasChecklist && (
+                <>
+                  <StepChecklistFields
+                    checklist={checklist}
+                    checkedItems={draft.checked}
+                    checklistItemNotes={draft.notes}
+                    onToggleItem={(item) => toggleChecklistItem(substep.key, item)}
+                    onItemNoteChange={(item, value) =>
+                      updateDraft(substep.key, (d) => ({
+                        checked: d.checked,
+                        notes: { ...d.notes, [item]: value },
+                      }))
+                    }
+                    allowItemNotes={allowItemNotes}
+                    compact
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={kind === "reminder" ? "outline" : "default"}
+                    className="w-fit"
+                    disabled={isPending || !checklistComplete}
+                    onClick={() =>
+                      markDone(substep, {
+                        checkedItems: Array.from(draft.checked),
+                        checklistItemNotes: draft.notes,
+                      })
+                    }
+                  >
+                    {isPending ? "Menyimpan…" : substep.label}
+                  </Button>
+                </>
+              )}
+
+              {done && (
+                <div className="text-xs text-muted-foreground">
+                  <p>
+                    Dicatat:{" "}
+                    {completion
+                      ? formatDateTime(completion.completedAt)
+                      : "baru saja"}
+                  </p>
+                  {completion?.eventDate && (
+                    <p>Tanggal: {formatDateKey(completion.eventDate)}</p>
+                  )}
+                  {completion?.note && (
+                    <p className="whitespace-pre-wrap italic">{completion.note}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
-      <Dialog open={!!pendingSubstep} onOpenChange={(open) => !open && closeConfirm()}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{pendingSubstep?.label}</DialogTitle>
-            <DialogDescription>
-              Checklist sub-step ini harus selesai dulu. Waktu dicatat otomatis saat Simpan.
-              {pendingSubstep && getSubstepKind(pendingSubstep) === "reminder" && (
-                <span className="mt-1 block">
-                  Sub-step reminder tidak memblokir unlock step berikutnya.
-                </span>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex flex-col gap-3">
-            {pendingChecklist.length > 0 && (
-              <StepChecklistFields
-                checklist={pendingChecklist}
-                checkedItems={checkedItems}
-                checklistItemNotes={checklistItemNotes}
-                onToggleItem={toggleChecklistItem}
-                onItemNoteChange={(item, value) =>
-                  setChecklistItemNotes((prev) => ({ ...prev, [item]: value }))
-                }
-                allowItemNotes={pendingAllowItemNotes}
-                compact
-              />
-            )}
-          </div>
-
-          {error && pendingSubstep && (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          )}
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={closeConfirm} disabled={isPending}>
-              Batal
-            </Button>
-            <Button
-              type="button"
-              onClick={handleConfirm}
-              disabled={isPending || !pendingChecklistComplete}
-            >
-              {isPending ? "Menyimpan…" : "Simpan"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+      {error && (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+      {canEdit && completedKeys.size > 0 && (
+        <p className="text-[11px] text-muted-foreground">
+          Salah klik? tekan Undo. Kalau sudah lanjut ke sub-step wajib berikutnya,
+          undo yang itu dulu.
+        </p>
+      )}
+    </div>
   )
 }

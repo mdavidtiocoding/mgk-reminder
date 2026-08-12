@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 
 import { requirePermission } from "@/lib/auth/require-permission"
+import { serializeSubsteps, type SubstepDefinition } from "@/lib/steps/substeps"
 import {
   parseCompletionMode,
   validateCompletionModeConfig,
@@ -253,29 +254,30 @@ export async function updateStepSubsteps(
     sortOrder: number
     kind?: "required" | "reminder"
     checklist?: string[]
+    checklistMode?: "checklist" | "checklist_keterangan"
   }[]
 ): Promise<{ success: true } | { success: false; error: string }> {
   const { supabase } = await requirePermission("settings_flow")
 
-  const normalized = substeps
-    .map((substep, index) => {
-      const checklist = (substep.checklist ?? [])
+  const cleaned: SubstepDefinition[] = substeps
+    .map((substep, index) => ({
+      key: substep.key.trim(),
+      label: substep.label.trim(),
+      sortOrder: substep.sortOrder || index + 1,
+      kind: substep.kind ?? ("required" as const),
+      checklist: (substep.checklist ?? [])
         .map((item) => item.trim())
-        .filter(Boolean)
-      return {
-        key: substep.key.trim(),
-        label: substep.label.trim(),
-        sort_order: substep.sortOrder || index + 1,
-        kind: substep.kind === "reminder" ? "reminder" : "required",
-        ...(checklist.length > 0 ? { checklist_items: checklist } : {}),
-      }
-    })
+        .filter(Boolean),
+      checklistMode: substep.checklistMode,
+    }))
     .filter((substep) => substep.key && substep.label)
 
-  const keys = normalized.map((s) => s.key)
+  const keys = cleaned.map((s) => s.key)
   if (new Set(keys).size !== keys.length) {
     return { success: false, error: "Key sub-step harus unik." }
   }
+
+  const normalized = serializeSubsteps(cleaned)
 
   const { data, error } = await supabase
     .from("step_definitions")
