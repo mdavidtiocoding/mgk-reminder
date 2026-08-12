@@ -27,7 +27,6 @@ import { isChecklistItemComplete } from "@/lib/steps/checklist-response"
 import {
   allowsChecklistItemNotes,
   requiresChecklist,
-  showsStandaloneKeterangan,
 } from "@/lib/steps/completion-mode"
 import { isNoteRouteEnabled, resolveNoteRouteTargets } from "@/lib/steps/note-route-config"
 import {
@@ -302,16 +301,11 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
   const showChecklist =
     requiresChecklist(completionMode) && checklist.length > 0
   const itemNotesAllowed = allowsChecklistItemNotes(completionMode)
-  const noteRequired = showsStandaloneKeterangan(
-    completionMode,
-    showChecklist
-  )
 
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
   const [checklistItemNotes, setChecklistItemNotes] = useState<
     Record<string, string>
   >({})
-  const [note, setNote] = useState("")
   const [dateValues, setDateValues] = useState<Record<string, string>>({})
   const [outcome, setOutcome] = useState<"ok" | "reschedule" | "">("")
   const [rescheduleDate, setRescheduleDate] = useState("")
@@ -333,7 +327,6 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
   function reset() {
     setCheckedItems(new Set())
     setChecklistItemNotes({})
-    setNote("")
     setDateValues({})
     setOutcome("")
     setRescheduleDate("")
@@ -403,9 +396,6 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
         list.push(`Tanggal wajib: ${missing.map((d) => d.label).join(", ")}`)
       }
     }
-    if (noteRequired && !isReschedule && !note.trim()) {
-      list.push("Keterangan umum wajib diisi")
-    }
     return list
   }, [
     hasOutcome,
@@ -426,8 +416,6 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
     showDateInputs,
     dateInputs,
     dateValues,
-    noteRequired,
-    note,
     itemNotesAllowed,
   ])
 
@@ -437,7 +425,6 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
     hasOutcome ||
     dateInputs.length > 0 ||
     bastChoice ||
-    noteRequired ||
     showNoteRoute
 
   if (!hasInteractive) {
@@ -457,9 +444,7 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
             ? "Checklist + keterangan: centang yang OK. Yang tidak dicentang wajib isi keterangan."
             : showChecklist
               ? "Checklist: semua item wajib dicentang, tanpa kolom catatan."
-              : noteRequired
-                ? "Keterangan: wajib isi keterangan umum sebelum selesai."
-                : "Form mark done."}
+              : "Step normal: catatan opsional."}
         </p>
         <Button
           type="button"
@@ -655,21 +640,6 @@ function MockChecklistFlow({ row }: { row: FlowConfigRow }) {
               />
             </div>
           ))}
-        </div>
-      )}
-
-      {noteRequired && !isReschedule && (
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">Keterangan (wajib)</Label>
-          <Textarea
-            placeholder="Isi keterangan seperti di My Tasks…"
-            value={note}
-            onChange={(e) => {
-              setNote(e.target.value)
-              setPassed(false)
-            }}
-            className="min-h-[72px] text-sm"
-          />
         </div>
       )}
 

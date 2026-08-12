@@ -11,7 +11,6 @@ import { cn } from "@/lib/utils"
 const LEGEND_ITEMS = [
   { icon: "📋", label: "Step Normal", desc: "Tandai selesai biasa" },
   { icon: "☑️", label: "Step Checklist", desc: "Semua item wajib dicentang" },
-  { icon: "📝", label: "Step Keterangan", desc: "Wajib isi keterangan umum" },
   { icon: "☑️", label: "Checklist + Keterangan", desc: "Tidak dicentang = wajib isi keterangan" },
   { icon: "🔁", label: "Step reschedule", desc: "Selesai / Belum + pilih tanggal berikutnya" },
   { icon: "🧩", label: "Sub-step", desc: "Tombol aksi berurutan dalam 1 step" },

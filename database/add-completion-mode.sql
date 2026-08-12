@@ -5,7 +5,7 @@ ALTER TABLE public.step_definitions
   ADD COLUMN IF NOT EXISTS completion_mode TEXT NOT NULL DEFAULT 'normal';
 
 COMMENT ON COLUMN public.step_definitions.completion_mode IS
-  'How mark-as-done works: normal | checklist | keterangan | checklist_keterangan';
+  'How mark-as-done works: normal | checklist | checklist_keterangan';
 
 -- Seed existing checklist steps
 UPDATE public.step_definitions

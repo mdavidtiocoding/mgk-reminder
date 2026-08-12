@@ -33,7 +33,6 @@ import {
   COMPLETION_MODE_LABELS,
   allowsChecklistItemNotes,
   requiresChecklist,
-  showsStandaloneKeterangan,
   type StepCompletionMode,
 } from "@/lib/steps/completion-mode"
 
@@ -84,10 +83,6 @@ export function MarkDoneDialog({
   const showChecklist =
     requiresChecklist(completionMode) && checklist && checklist.length > 0
   const itemNotesAllowed = allowsChecklistItemNotes(completionMode)
-  const noteRequired = showsStandaloneKeterangan(
-    completionMode,
-    Boolean(showChecklist)
-  )
   const isReschedule = hasOutcome && outcome === "reschedule"
   const showDateInputs =
     !!dateInputs && dateInputs.length > 0 && (!hasOutcome || outcome === "ok")
@@ -147,7 +142,6 @@ export function MarkDoneDialog({
     !bastChoice ||
     isReschedule ||
     (bast2Required !== null && bastEstimate.trim().length > 0)
-  const noteComplete = !noteRequired || isReschedule || note.trim().length > 0
   const showNoteRoute = noteRouteTargets.length > 0 && !isReschedule
   const noteRouteComplete =
     !showNoteRoute ||
@@ -161,7 +155,6 @@ export function MarkDoneDialog({
     dateInputsComplete &&
     outcomeComplete &&
     bastComplete &&
-    noteComplete &&
     noteRouteComplete
 
   function handleSubmit() {
@@ -400,16 +393,10 @@ export function MarkDoneDialog({
 
             {!isReschedule && !showChecklist && (
               <div className="flex flex-col gap-2">
-                <Label htmlFor="note">
-                  {noteRequired ? "Keterangan (wajib)" : "Catatan (opsional)"}
-                </Label>
+                <Label htmlFor="note">Catatan (opsional)</Label>
                 <Textarea
                   id="note"
-                  placeholder={
-                    noteRequired
-                      ? "Isi keterangan sebelum menyelesaikan step…"
-                      : "Tambahkan catatan jika perlu…"
-                  }
+                  placeholder="Tambahkan catatan jika perlu…"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                 />

@@ -22,7 +22,6 @@ import {
 import {
   allowsChecklistItemNotes,
   requiresChecklist,
-  requiresKeterangan,
 } from "@/lib/steps/completion-mode"
 import type { DateField } from "@/lib/steps"
 import { BAST2_STEP_CODES } from "@/lib/steps"
@@ -184,12 +183,6 @@ export async function completeStep(
   } else if (step.checklist && step.checklist.length > 0) {
     const checklistError = validateChecklist(step.checklist)
     if (checklistError) return checklistError
-  }
-
-  if (requiresKeterangan(completionMode)) {
-    if (!options.note?.trim()) {
-      return { success: false, error: "Keterangan wajib diisi." }
-    }
   }
 
   let outcome: string | null = null

@@ -1,7 +1,6 @@
 export const STEP_COMPLETION_MODES = [
   "normal",
   "checklist",
-  "keterangan",
   "checklist_keterangan",
 ] as const
 
@@ -10,14 +9,12 @@ export type StepCompletionMode = (typeof STEP_COMPLETION_MODES)[number]
 export const COMPLETION_MODE_LABELS: Record<StepCompletionMode, string> = {
   normal: "Step Normal",
   checklist: "Step Checklist",
-  keterangan: "Step Keterangan",
   checklist_keterangan: "Checklist + Keterangan",
 }
 
 export const COMPLETION_MODE_DESCRIPTIONS: Record<StepCompletionMode, string> = {
   normal: "Tombol Tandai Selesai — catatan opsional.",
   checklist: "Semua item wajib dicentang. Tidak ada kolom catatan.",
-  keterangan: "Wajib isi keterangan umum sebelum selesai.",
   checklist_keterangan:
     "Centang item yang OK. Yang tidak dicentang wajib isi keterangan.",
 }
@@ -25,11 +22,11 @@ export const COMPLETION_MODE_DESCRIPTIONS: Record<StepCompletionMode, string> = 
 export const COMPLETION_MODE_BADGES: Record<StepCompletionMode, string> = {
   normal: "bg-slate-100 text-slate-700",
   checklist: "bg-amber-100 text-amber-800",
-  keterangan: "bg-sky-100 text-sky-800",
   checklist_keterangan: "bg-violet-100 text-violet-800",
 }
 
 export function parseCompletionMode(value: unknown): StepCompletionMode {
+  if (value === "keterangan") return "normal"
   if (
     typeof value === "string" &&
     STEP_COMPLETION_MODES.includes(value as StepCompletionMode)
@@ -41,18 +38,6 @@ export function parseCompletionMode(value: unknown): StepCompletionMode {
 
 export function requiresChecklist(mode: StepCompletionMode): boolean {
   return mode === "checklist" || mode === "checklist_keterangan"
-}
-
-export function requiresKeterangan(mode: StepCompletionMode): boolean {
-  return mode === "keterangan"
-}
-
-/** Standalone keterangan box only when there is no checklist on screen. */
-export function showsStandaloneKeterangan(
-  mode: StepCompletionMode,
-  hasChecklist: boolean
-): boolean {
-  return requiresKeterangan(mode) && !hasChecklist
 }
 
 /** Per-item note when an item is left unchecked (checklist + keterangan). */
