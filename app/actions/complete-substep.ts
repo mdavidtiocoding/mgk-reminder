@@ -27,6 +27,7 @@ import {
 } from "@/lib/steps/checklist-response"
 import {
   resolveUserDivisions,
+  userCanWorkDivision,
   userHasDivision,
 } from "@/lib/auth/user-divisions"
 import { createClient } from "@/lib/supabase/server"
@@ -78,8 +79,8 @@ export async function completeSubstep(
     return { success: false, error: "Sub-step tidak dikenali." }
   }
 
-  if (!userHasDivision(userDivisions, step.division)) {
-    return { success: false, error: "Anda tidak berwenang menyelesaikan step ini." }
+  if (!userCanWorkDivision(userDivisions, step.division)) {
+    return { success: false, error: "Anda tidak berwenang menyelesaikan step ini. Minta tim divisi yang mengerjakan." }
   }
 
   const { data: project } = await supabase

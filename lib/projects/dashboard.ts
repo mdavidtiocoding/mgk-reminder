@@ -3,6 +3,11 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { getAppThresholds } from "@/lib/app-config"
 import { daysSinceWib } from "@/lib/format"
 import {
+  hoursSince,
+  isPastDelayThreshold,
+  resolveDelayHours,
+} from "@/lib/projects/delay"
+import {
   computeProjectSteps,
   getActiveComputedSteps,
   type CompletionInfo,
@@ -53,8 +58,10 @@ export type DashboardActiveStep = {
   division: Division
   divisionLabel: string
   waitingDays: number
+  waitingHours: number
   isHogger: boolean
   isWaitingWarning: boolean
+  isDelayed: boolean
 }
 
 export type DashboardProject = {
@@ -71,8 +78,10 @@ export type DashboardProject = {
   currentStageLabel: string
   stageProgress: number
   maxWaitingDays: number
+  maxWaitingHours: number
   isHogger: boolean
   isWaitingWarning: boolean
+  isDelayed: boolean
 }
 
 export type DashboardFilters = {
@@ -91,6 +100,7 @@ function enrichProject(
   project: ProjectRow,
   hoggerDays: number,
   warningDays: number,
+  delayHoursDefault: number,
   runtimeSteps: Awaited<ReturnType<typeof loadRuntimeSteps>>,
   substepCompletions: SubstepCompletion[] = []
 ): DashboardProject {
@@ -115,14 +125,24 @@ function enrichProject(
 
   const activeSteps: DashboardActiveStep[] = activeComputed.map((s) => {
     const waitingDays = s.unlockedAt ? daysSince(s.unlockedAt) : 0
+    const waitingHours = s.unlockedAt ? hoursSince(s.unlockedAt) : 0
+    const delayHours = resolveDelayHours(
+      s.definition.delayHours,
+      delayHoursDefault
+    )
+    const isDelayed =
+      project.status === "active" &&
+      isPastDelayThreshold(s.unlockedAt, delayHours)
     return {
       code: s.definition.code,
       name: s.definition.name,
       division: s.definition.division,
       divisionLabel: getDivisionLabel(s.definition.division),
       waitingDays,
+      waitingHours,
       isHogger: project.status === "active" && waitingDays > hoggerDays,
       isWaitingWarning: project.status === "active" && waitingDays > warningDays,
+      isDelayed,
     }
   })
 
@@ -130,6 +150,11 @@ function enrichProject(
     (max, s) => Math.max(max, s.waitingDays),
     0
   )
+  const maxWaitingHours = activeSteps.reduce(
+    (max, s) => Math.max(max, s.waitingHours),
+    0
+  )
+  const isDelayed = activeSteps.some((s) => s.isDelayed)
 
   const activeStages = activeSteps.map((s) => {
     const def = computedSteps.find((c) => c.definition.code === s.code)
@@ -157,8 +182,10 @@ function enrichProject(
     currentStageLabel: STAGE_LABELS[currentStage] ?? "",
     stageProgress: Math.round((currentStage / TOTAL_STAGE_COUNT) * 100),
     maxWaitingDays,
+    maxWaitingHours,
     isHogger: project.status === "active" && maxWaitingDays > hoggerDays,
     isWaitingWarning: project.status === "active" && maxWaitingDays > warningDays,
+    isDelayed,
   }
 }
 
@@ -268,6 +295,7 @@ export async function getDashboardProjects(
       project,
       thresholds.hoggerDays,
       thresholds.warningDays,
+      thresholds.delayHours,
       runtimeSteps,
       substepMap.get(project.id) ?? []
     )

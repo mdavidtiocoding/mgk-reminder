@@ -292,6 +292,22 @@ function StepActiveBody({
           existingNote={step.followUpNote}
         />
       )}
+      {!step.canComplete && step.canFollowUp && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-muted-foreground">
+            Review saja — tim {step.divisionLabel} yang mengerjakan. Admin bisa
+            follow up.
+          </p>
+          <SetFollowUpDialog
+            projectId={project.id}
+            stepCode={step.code}
+            stepName={step.name}
+            existingDate={step.followUpDate}
+            existingTime={step.followUpTime}
+            existingNote={step.followUpNote}
+          />
+        </div>
+      )}
     </div>
   )
 }

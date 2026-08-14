@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import {
+  DELAY_THRESHOLD_HOURS,
   HOGGER_THRESHOLD_DAYS,
   WAITING_WARNING_DAYS,
 } from "@/lib/constants"
@@ -8,11 +9,13 @@ import {
 export type AppThresholds = {
   hoggerDays: number
   warningDays: number
+  delayHours: number
 }
 
 const DEFAULTS: AppThresholds = {
   hoggerDays: HOGGER_THRESHOLD_DAYS,
   warningDays: WAITING_WARNING_DAYS,
+  delayHours: DELAY_THRESHOLD_HOURS,
 }
 
 function parsePositiveInt(value: string | null | undefined, fallback: number): number {
@@ -27,7 +30,7 @@ export async function getAppThresholds(
   const { data, error } = await supabase
     .from("app_config")
     .select("key, value")
-    .in("key", ["hogger_days", "warning_days"])
+    .in("key", ["hogger_days", "warning_days", "delay_hours"])
 
   if (error || !data) return { ...DEFAULTS }
 
@@ -36,5 +39,6 @@ export async function getAppThresholds(
   return {
     hoggerDays: parsePositiveInt(map.get("hogger_days"), DEFAULTS.hoggerDays),
     warningDays: parsePositiveInt(map.get("warning_days"), DEFAULTS.warningDays),
+    delayHours: parsePositiveInt(map.get("delay_hours"), DEFAULTS.delayHours),
   }
 }

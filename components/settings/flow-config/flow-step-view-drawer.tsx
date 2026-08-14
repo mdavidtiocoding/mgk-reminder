@@ -116,6 +116,14 @@ export function FlowStepViewDrawer({
               </p>
             </ReadOnlySection>
 
+            <ReadOnlySection title="Delay">
+              <p className="text-sm">
+                {row.delayHours
+                  ? `${row.delayHours} jam setelah unlock`
+                  : "Default Settings"}
+              </p>
+            </ReadOnlySection>
+
             <ReadOnlySection title="Step reschedule">
               {row.hasOutcome ? (
                 <div className="space-y-1">

@@ -89,7 +89,7 @@ export default async function MyTasksPage({
           </div>
           <p className="text-sm text-muted-foreground">
             {isUserAdmin(userDivisions)
-              ? "Admin hanya melihat step yang sudah delay / telat — step yang masih on-time tidak masuk daftar ini."
+              ? "Admin hanya melihat step yang sudah Delay (lewat threshold jam). Step yang baru unlock belum dihitung telat."
               : "Step aktif yang menjadi tanggung jawab divisi kamu"}
             {" · "}
             <span className="font-medium text-foreground">
@@ -98,9 +98,9 @@ export default async function MyTasksPage({
           </p>
           {isUserAdmin(userDivisions) && (
             <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              Catatan: di akun Admin, My Tasks hanya menampilkan project/step
-              yang mengalami delay. Untuk step yang belum telat, buka dari
-              Dashboard.
+              Catatan: Admin hanya review & follow up task yang Delay — tidak
+              mengerjakan step. Tim divisi yang tandai selesai. Preview untuk
+              lihat detail; follow up untuk kasih perintah ke tim.
             </p>
           )}
           <div className="mt-3">

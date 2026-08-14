@@ -15,6 +15,7 @@ import {
   type NoteRouteConfig,
 } from "@/lib/steps/note-route-config"
 import { parseTriggerConfig } from "@/lib/steps/trigger-config"
+import { parseDelayHours } from "@/lib/projects/delay"
 
 type StepDefRow = {
   code: string
@@ -31,6 +32,7 @@ type StepDefRow = {
   note_route_config?: unknown
   has_outcome?: boolean | null
   outcome_reschedule_field?: string | null
+  delay_hours?: number | null
 }
 
 async function fetchStepDefinitionRows(
@@ -39,7 +41,7 @@ async function fetchStepDefinitionRows(
   const withNoteRoute = await supabase
     .from("step_definitions")
     .select(
-      "code, name, division, stage, sort_order, prerequisites, checklist_items, completion_mode, substeps, trigger_config, bast_choice, note_route_config, has_outcome, outcome_reschedule_field"
+      "code, name, division, stage, sort_order, prerequisites, checklist_items, completion_mode, substeps, trigger_config, bast_choice, note_route_config, has_outcome, outcome_reschedule_field, delay_hours"
     )
     .order("sort_order")
 
@@ -199,6 +201,7 @@ export async function loadFlowConfigRows(
         noteRoute,
         hasOutcome,
         outcomeRescheduleField,
+        delayHours: parseDelayHours(row.delay_hours),
       }
     })
 }

@@ -2,6 +2,7 @@ import Link from "next/link"
 
 import { IncomingStepNotes } from "@/components/project/incoming-step-notes"
 import { MarkDoneDialog } from "@/components/project/mark-done-dialog"
+import { SetFollowUpDialog } from "@/components/project/set-followup-dialog"
 import { StepChecklistCompletion } from "@/components/project/step-checklist-completion"
 import { StepRescheduleNotice } from "@/components/project/step-reschedule-notice"
 import { Button } from "@/components/ui/button"
@@ -17,6 +18,7 @@ import {
   ProjectStatusBadge,
 } from "@/components/ui/status-badges"
 import type { MyTask } from "@/lib/projects/tasks"
+import { formatDelayDuration } from "@/lib/projects/delay"
 import { usesInlineChecklist } from "@/lib/steps/inline-checklist"
 
 type TaskCardProps = {
@@ -41,7 +43,12 @@ export function TaskCard({ task }: TaskCardProps) {
           <ProjectStatusBadge
             status="active"
             isHogger={task.isHogger}
-            delayDays={task.waitingDays}
+            isDelayed={task.isDelayed}
+            delayLabel={
+              task.isDelayed
+                ? `Delay ${formatDelayDuration(task.waitingHours)}`
+                : undefined
+            }
             isWaitingWarning={task.isWaitingWarning}
           />
           <DivisionBadge
@@ -85,6 +92,11 @@ export function TaskCard({ task }: TaskCardProps) {
             compact
           />
         )}
+        {!task.canComplete && task.canFollowUp && (
+          <p className="text-xs text-muted-foreground">
+            Preview & follow up — tim {task.divisionLabel} yang mengerjakan.
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
           {!hasSubsteps && task.canComplete && !inlineChecklist && (
             <MarkDoneDialog
@@ -100,9 +112,24 @@ export function TaskCard({ task }: TaskCardProps) {
               noteRouteTargets={task.noteRouteTargets}
             />
           )}
-          <Button variant={hasSubsteps ? "default" : "outline"} size="sm" asChild>
+          {!task.canComplete && task.canFollowUp && (
+            <SetFollowUpDialog
+              projectId={task.projectId}
+              stepCode={task.stepCode}
+              stepName={task.stepName}
+            />
+          )}
+          <Button
+            variant={task.canComplete && hasSubsteps ? "default" : "outline"}
+            size="sm"
+            asChild
+          >
             <Link href={projectStepHref}>
-              {hasSubsteps ? "Buka & selesaikan" : "Ke step ini"}
+              {task.canComplete
+                ? hasSubsteps
+                  ? "Buka & selesaikan"
+                  : "Ke step ini"
+                : "Preview"}
             </Link>
           </Button>
         </div>

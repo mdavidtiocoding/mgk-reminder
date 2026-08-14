@@ -64,6 +64,8 @@ export type FlowConfigRow = {
   /** Step reschedule: ask Selesai / Belum and pick the next date. */
   hasOutcome: boolean
   outcomeRescheduleField: import("@/lib/steps").DateField | null
+  /** Override jam Delay; null = pakai default Settings. */
+  delayHours: number | null
 }
 
 type AllStepOption = {

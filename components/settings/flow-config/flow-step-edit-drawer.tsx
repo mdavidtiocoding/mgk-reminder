@@ -255,6 +255,39 @@ export function FlowStepEditDrawer({
               )}
             </EditSection>
 
+            <EditSection title="Delay">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="delay-hours" className="text-xs">
+                  Delay setelah (jam)
+                </Label>
+                <Input
+                  id="delay-hours"
+                  type="number"
+                  min={1}
+                  placeholder="Kosong = default Settings"
+                  value={draft.delayHours ?? ""}
+                  onChange={(e) => {
+                    const raw = e.target.value.trim()
+                    setDraft((d) => {
+                      if (!d) return d
+                      if (!raw) return { ...d, delayHours: null }
+                      const n = parseInt(raw, 10)
+                      return {
+                        ...d,
+                        delayHours: Number.isInteger(n) && n >= 1 ? n : d.delayHours,
+                      }
+                    })
+                  }}
+                  disabled={isPending}
+                  className="h-8"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Baru dihitung Delay setelah step unlock selama jam ini.
+                  Kosong = pakai default di Settings (12 jam, bisa diubah).
+                </p>
+              </div>
+            </EditSection>
+
             <EditSection title="Step reschedule">
               <label className="flex items-start gap-2.5 text-sm">
                 <Checkbox

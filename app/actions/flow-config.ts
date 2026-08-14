@@ -621,3 +621,41 @@ export async function updateStepNoteRouteConfig(
 
   return { success: true }
 }
+
+export async function updateStepDelayHours(
+  stepCode: string,
+  delayHours: number | null
+): Promise<{ success: true } | { success: false; error: string }> {
+  const { supabase } = await requirePermission("settings_flow")
+
+  const value =
+    delayHours != null && Number.isInteger(delayHours) && delayHours >= 1
+      ? delayHours
+      : null
+
+  const result = await supabase
+    .from("step_definitions")
+    .update({ delay_hours: value })
+    .eq("code", stepCode)
+    .select("code")
+    .maybeSingle()
+
+  if (result.error) {
+    return {
+      success: false,
+      error: result.error.message.includes("delay_hours")
+        ? "Kolom delay_hours belum ada - jalankan database/add-delay-hours.sql"
+        : result.error.message,
+    }
+  }
+  if (!result.data) {
+    return { success: false, error: "Step tidak ditemukan." }
+  }
+
+  revalidatePath("/settings/flow")
+  revalidatePath("/projects/[id]", "page")
+  revalidatePath("/")
+  revalidatePath("/tasks")
+
+  return { success: true }
+}

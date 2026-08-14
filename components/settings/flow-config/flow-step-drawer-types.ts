@@ -25,6 +25,7 @@ export type FlowStepDraft = {
   noteRoute: NoteRouteConfig
   hasOutcome: boolean
   outcomeRescheduleField: DateField | null
+  delayHours: number | null
 }
 
 export type FlowStepDrawerHandlers = {
@@ -55,6 +56,7 @@ export function buildDraftFromRow(row: FlowConfigRow, displayName: string): Flow
     hasOutcome: row.hasOutcome ?? stepDef?.hasOutcome ?? false,
     outcomeRescheduleField:
       row.outcomeRescheduleField ?? stepDef?.outcomeRescheduleField ?? null,
+    delayHours: row.delayHours ?? stepDef?.delayHours ?? null,
     noteRoute: {
       enabled: row.noteRoute?.enabled ?? stepDef?.noteRoute?.enabled ?? false,
       targets: [
@@ -76,6 +78,7 @@ export function draftsEqual(a: FlowStepDraft, b: FlowStepDraft): boolean {
     a.bastChoice === b.bastChoice &&
     a.hasOutcome === b.hasOutcome &&
     a.outcomeRescheduleField === b.outcomeRescheduleField &&
+    a.delayHours === b.delayHours &&
     noteRouteConfigsEqual(a.noteRoute, b.noteRoute)
   )
 }

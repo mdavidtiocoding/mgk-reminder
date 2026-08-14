@@ -176,14 +176,15 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                 <CardHeader>
                   <CardTitle>Konfigurasi</CardTitle>
                   <CardDescription>
-                    Threshold untuk flag HOGGER dan warning &quot;waiting since&quot;
-                    di dashboard.
+                    Threshold Delay (jam), warning, dan HOGGER. Delay bisa
+                    di-override per step di Flow Config.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <AppConfigForm
                     hoggerDays={thresholds.hoggerDays}
                     warningDays={thresholds.warningDays}
+                    delayHours={thresholds.delayHours}
                   />
                 </CardContent>
               </Card>

@@ -2,7 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { getRolePermissions, userHasPermission } from "@/lib/auth/permissions"
 import { loadProfileDisplayNames } from "@/lib/auth/profile-names"
-import { userHasDivision } from "@/lib/auth/user-divisions"
+import {
+  isUserAdmin,
+  userCanWorkDivision,
+} from "@/lib/auth/user-divisions"
 import { computeProjectSteps, type CompletionInfo } from "@/lib/projects/active-steps"
 import { buildStepFlowWarnings } from "@/lib/projects/flow-warnings"
 import {
@@ -100,6 +103,7 @@ export type StepTimelineItem = {
   substeps: SubstepDefinition[]
   substepCompletions: SubstepCompletion[]
   canComplete: boolean
+  canFollowUp: boolean
   canEditSubsteps: boolean
   canUndo: boolean
   hasPendingReminderSubsteps: boolean
@@ -136,7 +140,7 @@ function canUserCompleteStep(
   userDivisions: Division[],
   stepDivision: Division
 ): boolean {
-  return userHasDivision(userDivisions, stepDivision)
+  return userCanWorkDivision(userDivisions, stepDivision)
 }
 
 export async function getProjectDetail(
@@ -278,6 +282,9 @@ export async function getProjectDetail(
       substeps: step.substeps,
       substepCompletions: stepSubstepCompletions,
       canComplete: computed.status === "active" && userCanCompleteStep,
+      canFollowUp:
+        computed.status === "active" &&
+        (userCanCompleteStep || isUserAdmin(userDivisions)),
       canEditSubsteps:
         userCanCompleteStep &&
         (computed.status === "active" || pendingReminders.length > 0),

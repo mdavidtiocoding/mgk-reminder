@@ -11,32 +11,48 @@ import { Label } from "@/components/ui/label"
 type AppConfigFormProps = {
   hoggerDays: number
   warningDays: number
+  delayHours: number
 }
 
-export function AppConfigForm({ hoggerDays, warningDays }: AppConfigFormProps) {
+export function AppConfigForm({
+  hoggerDays,
+  warningDays,
+  delayHours,
+}: AppConfigFormProps) {
   const router = useRouter()
   const [hogger, setHogger] = useState(String(hoggerDays))
   const [warning, setWarning] = useState(String(warningDays))
+  const [delay, setDelay] = useState(String(delayHours))
   const [message, setMessage] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
     setHogger(String(hoggerDays))
     setWarning(String(warningDays))
-  }, [hoggerDays, warningDays])
+    setDelay(String(delayHours))
+  }, [hoggerDays, warningDays, delayHours])
 
   const dirty = useMemo(
     () =>
       parseInt(hogger, 10) !== hoggerDays ||
-      parseInt(warning, 10) !== warningDays,
-    [hogger, warning, hoggerDays, warningDays]
+      parseInt(warning, 10) !== warningDays ||
+      parseInt(delay, 10) !== delayHours,
+    [hogger, warning, delay, hoggerDays, warningDays, delayHours]
   )
 
   function handleSave() {
     setMessage(null)
     const hoggerN = parseInt(hogger, 10)
     const warningN = parseInt(warning, 10)
-    if (isNaN(hoggerN) || hoggerN < 1 || isNaN(warningN) || warningN < 1) {
+    const delayN = parseInt(delay, 10)
+    if (
+      isNaN(hoggerN) ||
+      hoggerN < 1 ||
+      isNaN(warningN) ||
+      warningN < 1 ||
+      isNaN(delayN) ||
+      delayN < 1
+    ) {
       setMessage("Nilai harus angka ≥ 1")
       return
     }
@@ -45,6 +61,7 @@ export function AppConfigForm({ hoggerDays, warningDays }: AppConfigFormProps) {
       const result = await updateAppConfig({
         hoggerDays: hoggerN,
         warningDays: warningN,
+        delayHours: delayN,
       })
       if (!result.success) {
         setMessage(result.error ?? "Gagal menyimpan")
@@ -57,20 +74,21 @@ export function AppConfigForm({ hoggerDays, warningDays }: AppConfigFormProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="hogger-days">Hogger threshold (hari)</Label>
+          <Label htmlFor="delay-hours">Delay (jam)</Label>
           <Input
-            id="hogger-days"
+            id="delay-hours"
             type="number"
             min={1}
-            value={hogger}
-            onChange={(e) => setHogger(e.target.value)}
+            value={delay}
+            onChange={(e) => setDelay(e.target.value)}
             disabled={isPending}
             className="h-8"
           />
           <p className="text-xs text-muted-foreground">
-            Step aktif lebih lama dari ini ditandai HOGGER.
+            Setelah unlock, baru dihitung Delay. Default 12 jam. Bisa di-override
+            per step di Flow Config. Admin My Tasks hanya menampilkan yang Delay.
           </p>
         </div>
         <div className="flex flex-col gap-1.5">
@@ -86,6 +104,21 @@ export function AppConfigForm({ hoggerDays, warningDays }: AppConfigFormProps) {
           />
           <p className="text-xs text-muted-foreground">
             Teks &quot;waiting since&quot; berubah merah setelah ini.
+          </p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="hogger-days">Hogger threshold (hari)</Label>
+          <Input
+            id="hogger-days"
+            type="number"
+            min={1}
+            value={hogger}
+            onChange={(e) => setHogger(e.target.value)}
+            disabled={isPending}
+            className="h-8"
+          />
+          <p className="text-xs text-muted-foreground">
+            Step aktif lebih lama dari ini ditandai HOGGER.
           </p>
         </div>
       </div>

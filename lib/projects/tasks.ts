@@ -8,7 +8,16 @@ import {
   type CompletionInfo,
 } from "@/lib/projects/active-steps"
 import { buildProjectSearchHaystack, matchesTokenSearch } from "@/lib/search/match"
-import { isUserAdmin, userHasDivision } from "@/lib/auth/user-divisions"
+import {
+  isUserAdmin,
+  userCanWorkDivision,
+  userHasDivision,
+} from "@/lib/auth/user-divisions"
+import {
+  hoursSince,
+  isPastDelayThreshold,
+  resolveDelayHours,
+} from "@/lib/projects/delay"
 import { type Division, getDivisionLabel } from "@/lib/steps"
 import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
 import {
@@ -63,7 +72,10 @@ export type MyTask = {
   waitingDays: number
   isHogger: boolean
   isWaitingWarning: boolean
+  isDelayed: boolean
+  waitingHours: number
   canComplete: boolean
+  canFollowUp: boolean
   substeps: SubstepDefinition[]
   substepCompletions: SubstepCompletion[]
   nextSubstepLabel: string | null
@@ -97,11 +109,6 @@ function isTaskForUser(
 ): boolean {
   if (userDivisions.length === 0) return false
   return userHasDivision(userDivisions, stepDivision)
-}
-
-/** Matches the Delay badge: step already waiting 1+ hari. */
-function isDelayedTask(waitingDays: number): boolean {
-  return waitingDays > 0
 }
 
 export async function getMyTasks(
@@ -171,7 +178,13 @@ export async function getMyTasks(
       if (!isTaskForUser(step.division, userDivisions)) continue
 
       const waitingDays = active.unlockedAt ? daysSince(active.unlockedAt) : 0
-      if (adminView && !isDelayedTask(waitingDays)) continue
+      const waitingHours = active.unlockedAt ? hoursSince(active.unlockedAt) : 0
+      const delayHours = resolveDelayHours(
+        step.delayHours,
+        thresholds.delayHours
+      )
+      const isDelayed = isPastDelayThreshold(active.unlockedAt, delayHours)
+      if (adminView && !isDelayed) continue
       const stepSubstepCompletions = substepCompletions.filter(
         (c) => c.stepCode === step.code
       )
@@ -188,9 +201,14 @@ export async function getMyTasks(
         division: step.division,
         divisionLabel: getDivisionLabel(step.division),
         waitingDays,
+        waitingHours,
         isHogger: waitingDays > thresholds.hoggerDays,
         isWaitingWarning: waitingDays > thresholds.warningDays,
-        canComplete: userHasDivision(userDivisions, step.division),
+        isDelayed,
+        canComplete: userCanWorkDivision(userDivisions, step.division),
+        canFollowUp:
+          isUserAdmin(userDivisions) ||
+          userCanWorkDivision(userDivisions, step.division),
         substeps: step.substeps,
         substepCompletions: stepSubstepCompletions,
         nextSubstepLabel: nextSubstep?.label ?? null,
@@ -236,6 +254,9 @@ export async function getMyTasks(
       const waitingDays = stepCompletion
         ? daysSince(new Date(stepCompletion.completedAt))
         : 0
+      const waitingHours = stepCompletion
+        ? hoursSince(new Date(stepCompletion.completedAt))
+        : 0
       const stepSubstepCompletions = substepCompletions.filter(
         (c) => c.stepCode === step.code
       )
@@ -250,9 +271,14 @@ export async function getMyTasks(
         division: step.division,
         divisionLabel: getDivisionLabel(step.division),
         waitingDays,
+        waitingHours,
         isHogger: waitingDays > thresholds.hoggerDays,
         isWaitingWarning: waitingDays > thresholds.warningDays,
-        canComplete: userHasDivision(userDivisions, step.division),
+        isDelayed: false,
+        canComplete: userCanWorkDivision(userDivisions, step.division),
+        canFollowUp:
+          isUserAdmin(userDivisions) ||
+          userCanWorkDivision(userDivisions, step.division),
         substeps: step.substeps,
         substepCompletions: stepSubstepCompletions,
         nextSubstepLabel: nextSubstep ? `${nextSubstep.label} (reminder)` : null,

@@ -64,6 +64,18 @@ export function userHasDivision(
 }
 
 /**
+ * Boleh mengerjakan (tandai selesai) step divisi ini.
+ * Admin / Super Admin tidak otomatis dianggap semua divisi —
+ * mereka review & follow up; tim divisi yang kerjakan.
+ */
+export function userCanWorkDivision(
+  userDivisions: Division[],
+  target: Division
+): boolean {
+  return userDivisions.includes(target)
+}
+
+/**
  * Primary division for the legacy `division` column.
  * Prefer super_admin, then admin, so older checks keep working.
  */

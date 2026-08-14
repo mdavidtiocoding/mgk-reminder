@@ -3,6 +3,7 @@
 import {
   updateStepBastChoice,
   updateStepCompletionConfig,
+  updateStepDelayHours,
   updateStepNoteRouteConfig,
   updateStepOutcomeConfig,
   updateStepPrerequisites,
@@ -125,6 +126,10 @@ export async function saveFlowStepDraft(
         ? { enabled: false, targets: [] as string[] }
         : draft.noteRoute
     await runSave(errors, () => updateStepNoteRouteConfig(stepCode, noteRoute))
+  }
+
+  if (draft.delayHours !== original.delayHours) {
+    await runSave(errors, () => updateStepDelayHours(stepCode, draft.delayHours))
   }
 
   if (errors.length > 0) {

@@ -32,7 +32,7 @@ import {
 import { buildRescheduleChannel } from "@/lib/projects/reschedule-log"
 import {
   resolveUserDivisions,
-  userHasDivision,
+  userCanWorkDivision,
 } from "@/lib/auth/user-divisions"
 import { createServiceClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
@@ -95,8 +95,8 @@ export async function completeStep(
     }
   }
 
-  if (!userHasDivision(userDivisions, step.division)) {
-    return { success: false, error: "Anda tidak berwenang menyelesaikan step ini." }
+  if (!userCanWorkDivision(userDivisions, step.division)) {
+    return { success: false, error: "Anda tidak berwenang menyelesaikan step ini. Minta tim divisi yang mengerjakan." }
   }
 
   const { data: project } = await supabase

@@ -71,6 +71,11 @@ export type StepDefinition = {
    * pick a target step to forward those notes to.
    */
   noteRoute?: import("@/lib/steps/note-route-config").NoteRouteConfig
+  /**
+   * Hours after unlock before this step is Delay.
+   * Null/undefined = pakai default Settings (delay_hours).
+   */
+  delayHours?: number | null
   trigger: StepTrigger
 }
 

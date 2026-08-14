@@ -12,6 +12,7 @@ import {
   type NoteRouteConfig,
 } from "@/lib/steps/note-route-config"
 import { parseTriggerConfig } from "@/lib/steps/trigger-config"
+import { parseDelayHours } from "@/lib/projects/delay"
 
 export type RuntimeStep = StepDefinition & {
   substeps: SubstepDefinition[]
@@ -29,6 +30,7 @@ type StepDefinitionRow = {
   outcome_reschedule_field?: string | null
   bast_choice?: boolean | null
   note_route_config?: unknown
+  delay_hours?: number | null
 }
 
 const DATE_FIELDS = new Set<string>([
@@ -81,6 +83,7 @@ export function mergeRuntimeSteps(rows: StepDefinitionRow[]): RuntimeStep[] {
       outcomeRescheduleField,
       bastChoice: bastChoice || undefined,
       noteRoute: noteRouteValue,
+      delayHours: parseDelayHours(row?.delay_hours) ?? step.delayHours ?? null,
       substeps: parseSubsteps(row?.substeps),
     }
   })
@@ -91,7 +94,7 @@ export const loadRuntimeSteps = cache(
     const withNoteRoute = await supabase
       .from("step_definitions")
       .select(
-        "code, name, prerequisites, checklist_items, completion_mode, substeps, trigger_config, has_outcome, outcome_reschedule_field, bast_choice, note_route_config"
+        "code, name, prerequisites, checklist_items, completion_mode, substeps, trigger_config, has_outcome, outcome_reschedule_field, bast_choice, note_route_config, delay_hours"
       )
 
     if (!withNoteRoute.error) {

@@ -37,6 +37,8 @@ type ProjectStatusBadgeProps = {
   isHogger?: boolean
   delayDays?: number
   isWaitingWarning?: boolean
+  isDelayed?: boolean
+  delayLabel?: string
   className?: string
 }
 
@@ -46,6 +48,8 @@ export function ProjectStatusBadge({
   isHogger,
   delayDays = 0,
   isWaitingWarning,
+  isDelayed,
+  delayLabel,
   className,
 }: ProjectStatusBadgeProps) {
   if (status === "on_hold") {
@@ -71,16 +75,29 @@ export function ProjectStatusBadge({
     )
   }
 
-  if (isHogger || (delayDays > 0 && isWaitingWarning)) {
+  const delayed = isDelayed ?? delayDays > 0
+  const label =
+    delayLabel ?? (delayDays > 0 ? `Delay ${delayDays} hari` : "Delay")
+
+  if (isHogger) {
     return (
       <Badge variant="destructive" className={cn("gap-1 font-medium", className)}>
         <AlertCircle className="size-3" aria-hidden />
-        {delayDays > 0 ? `Delay ${delayDays}h` : "HOGGER"}
+        {delayed ? label : "HOGGER"}
       </Badge>
     )
   }
 
-  if (delayDays > 0) {
+  if (delayed && isWaitingWarning) {
+    return (
+      <Badge variant="destructive" className={cn("gap-1 font-medium", className)}>
+        <AlertCircle className="size-3" aria-hidden />
+        {label}
+      </Badge>
+    )
+  }
+
+  if (delayed) {
     return (
       <Badge
         className={cn(
@@ -89,7 +106,7 @@ export function ProjectStatusBadge({
         )}
       >
         <AlertCircle className="size-3" aria-hidden />
-        Delay {delayDays}h
+        {label}
       </Badge>
     )
   }

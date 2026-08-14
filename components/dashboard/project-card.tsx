@@ -18,6 +18,7 @@ import {
 import { Progress } from "@/components/ui/progress"
 import { DIVISION_BADGE_STYLES, STAGE_SHORT_LABELS } from "@/lib/steps"
 import type { DashboardProject } from "@/lib/projects/dashboard"
+import { formatDelayDuration } from "@/lib/projects/delay"
 import { cn } from "@/lib/utils"
 
 type ProjectCardProps = {
@@ -52,7 +53,7 @@ export function ProjectCard({ project, variant = "classic" }: ProjectCardProps) 
   const isOnHold = project.status === "on_hold"
   const divisionBadges = uniqueActiveDivisions(project)
   const pendingCount = project.activeSteps.length
-  const showDelay = project.status === "active" && project.maxWaitingDays > 0
+  const showDelay = project.status === "active" && project.isDelayed
 
   const summary = (
     <>
@@ -62,7 +63,12 @@ export function ProjectCard({ project, variant = "classic" }: ProjectCardProps) 
             <ProjectStatusBadge
               status={project.status}
               isHogger={project.isHogger}
-              delayDays={showDelay ? project.maxWaitingDays : 0}
+              isDelayed={showDelay}
+              delayLabel={
+                showDelay
+                  ? `Delay ${formatDelayDuration(project.maxWaitingHours)}`
+                  : undefined
+              }
               isWaitingWarning={project.isWaitingWarning}
             />
             {project.status === "active" &&

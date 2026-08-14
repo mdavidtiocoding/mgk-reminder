@@ -99,6 +99,7 @@ export async function updateStepDefinitionName(stepCode: string, name: string) {
 export async function updateAppConfig(updates: {
   hoggerDays?: number
   warningDays?: number
+  delayHours?: number
 }) {
   const auth = await assertPermission("settings_app_config")
   if (!auth.ok) return { success: false, error: auth.error }
@@ -115,6 +116,12 @@ export async function updateAppConfig(updates: {
       return { success: false, error: "Warning days harus angka ≥ 1" }
     }
     rows.push({ key: "warning_days", value: String(updates.warningDays) })
+  }
+  if (updates.delayHours !== undefined) {
+    if (!Number.isInteger(updates.delayHours) || updates.delayHours < 1) {
+      return { success: false, error: "Delay harus angka jam ≥ 1" }
+    }
+    rows.push({ key: "delay_hours", value: String(updates.delayHours) })
   }
 
   if (rows.length === 0) return { success: true }
