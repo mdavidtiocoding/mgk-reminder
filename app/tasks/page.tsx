@@ -88,13 +88,21 @@ export default async function MyTasksPage({
             <OutstandingBadge count={tasks.length} className="h-6 min-w-6 px-2 text-xs" />
           </div>
           <p className="text-sm text-muted-foreground">
-            Step aktif yang menjadi tanggung jawab divisi kamu
-            {isUserAdmin(userDivisions) ? " (admin: semua step)" : ""}
+            {isUserAdmin(userDivisions)
+              ? "Admin hanya melihat step yang sudah delay / telat — step yang masih on-time tidak masuk daftar ini."
+              : "Step aktif yang menjadi tanggung jawab divisi kamu"}
             {" · "}
             <span className="font-medium text-foreground">
               {tasks.length} outstanding
             </span>
           </p>
+          {isUserAdmin(userDivisions) && (
+            <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              Catatan: di akun Admin, My Tasks hanya menampilkan project/step
+              yang mengalami delay. Untuk step yang belum telat, buka dari
+              Dashboard.
+            </p>
+          )}
           <div className="mt-3">
             <Suspense fallback={null}>
               <UrlSearchInput placeholder="Cari project, customer, step…" />
@@ -104,9 +112,15 @@ export default async function MyTasksPage({
 
         {groups.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
-            <p className="text-sm font-medium">Tidak ada task aktif</p>
+            <p className="text-sm font-medium">
+              {isUserAdmin(userDivisions)
+                ? "Tidak ada project delay"
+                : "Tidak ada task aktif"}
+            </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Semua step divisi kamu sudah selesai atau belum ada project aktif.
+              {isUserAdmin(userDivisions)
+                ? "Semua step aktif masih on-time. My Tasks admin hanya menampilkan yang sudah telat."
+                : "Semua step divisi kamu sudah selesai atau belum ada project aktif."}
             </p>
           </div>
         ) : (

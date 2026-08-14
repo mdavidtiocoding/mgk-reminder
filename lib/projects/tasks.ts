@@ -8,7 +8,7 @@ import {
   type CompletionInfo,
 } from "@/lib/projects/active-steps"
 import { buildProjectSearchHaystack, matchesTokenSearch } from "@/lib/search/match"
-import { userHasDivision } from "@/lib/auth/user-divisions"
+import { isUserAdmin, userHasDivision } from "@/lib/auth/user-divisions"
 import { type Division, getDivisionLabel } from "@/lib/steps"
 import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
 import {
@@ -99,6 +99,11 @@ function isTaskForUser(
   return userHasDivision(userDivisions, stepDivision)
 }
 
+/** Matches the Delay badge: step already waiting 1+ hari. */
+function isDelayedTask(waitingDays: number): boolean {
+  return waitingDays > 0
+}
+
 export async function getMyTasks(
   supabase: SupabaseClient,
   userDivisions: Division[] = [],
@@ -139,6 +144,7 @@ export async function getMyTasks(
   ])
 
   const tasks: MyTask[] = []
+  const adminView = isUserAdmin(userDivisions)
 
   for (const project of projectRows) {
     const completions: CompletionInfo[] = (project.step_completions ?? []).map((c) => ({
@@ -165,6 +171,7 @@ export async function getMyTasks(
       if (!isTaskForUser(step.division, userDivisions)) continue
 
       const waitingDays = active.unlockedAt ? daysSince(active.unlockedAt) : 0
+      if (adminView && !isDelayedTask(waitingDays)) continue
       const stepSubstepCompletions = substepCompletions.filter(
         (c) => c.stepCode === step.code
       )
@@ -216,6 +223,7 @@ export async function getMyTasks(
     }
 
     for (const computed of computedSteps) {
+      if (adminView) continue
       if (computed.status !== "done") continue
       const step = computed.definition
       if (!isTaskForUser(step.division, userDivisions)) continue
