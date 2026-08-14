@@ -116,11 +116,11 @@ export function FlowStepViewDrawer({
               </p>
             </ReadOnlySection>
 
-            <ReadOnlySection title="Delay">
+            <ReadOnlySection title="Waktu respon / Delay">
               <p className="text-sm">
                 {row.delayHours
-                  ? `${row.delayHours} jam setelah unlock`
-                  : "Default Settings"}
+                  ? `${row.delayHours} jam setelah trigger (override)`
+                  : "Default Settings (1×24 jam, bisa diubah)"}
               </p>
             </ReadOnlySection>
 

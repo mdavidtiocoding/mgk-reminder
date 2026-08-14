@@ -255,16 +255,16 @@ export function FlowStepEditDrawer({
               )}
             </EditSection>
 
-            <EditSection title="Delay">
+            <EditSection title="Waktu respon / Delay">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="delay-hours" className="text-xs">
-                  Delay setelah (jam)
+                  Deadline respon (jam)
                 </Label>
                 <Input
                   id="delay-hours"
                   type="number"
                   min={1}
-                  placeholder="Kosong = default Settings"
+                  placeholder="Kosong = default Settings (24 jam)"
                   value={draft.delayHours ?? ""}
                   onChange={(e) => {
                     const raw = e.target.value.trim()
@@ -282,8 +282,9 @@ export function FlowStepEditDrawer({
                   className="h-8"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Baru dihitung Delay setelah step unlock selama jam ini.
-                  Kosong = pakai default di Settings (12 jam, bisa diubah).
+                  Setelah trigger, tim punya waktu ini untuk respon. Baru Delay
+                  kalau sudah lewat. Kosong = pakai default Settings (1×24 jam,
+                  bisa diubah). Step urgent bisa 6–12 jam; yang longgar 48 jam.
                 </p>
               </div>
             </EditSection>

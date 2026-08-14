@@ -176,8 +176,8 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                 <CardHeader>
                   <CardTitle>Konfigurasi</CardTitle>
                   <CardDescription>
-                    Threshold Delay (jam), warning, dan HOGGER. Delay bisa
-                    di-override per step di Flow Config.
+                    Threshold waktu respon (default 1×24 jam), warning, dan
+                    HOGGER. Deadline per step bisa di-override di Flow Config.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

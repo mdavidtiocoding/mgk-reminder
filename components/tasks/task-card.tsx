@@ -18,7 +18,7 @@ import {
   ProjectStatusBadge,
 } from "@/components/ui/status-badges"
 import type { MyTask } from "@/lib/projects/tasks"
-import { formatDelayDuration } from "@/lib/projects/delay"
+import { formatDelayDuration, overdueHours } from "@/lib/projects/delay"
 import { usesInlineChecklist } from "@/lib/steps/inline-checklist"
 
 type TaskCardProps = {
@@ -46,7 +46,9 @@ export function TaskCard({ task }: TaskCardProps) {
             isDelayed={task.isDelayed}
             delayLabel={
               task.isDelayed
-                ? `Delay ${formatDelayDuration(task.waitingHours)}`
+                ? `Delay ${formatDelayDuration(
+                    overdueHours(task.waitingHours, task.delayThresholdHours)
+                  )}`
                 : undefined
             }
             isWaitingWarning={task.isWaitingWarning}
@@ -67,6 +69,13 @@ export function TaskCard({ task }: TaskCardProps) {
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <p className="text-sm leading-snug">{task.stepName}</p>
+        {task.isDelayed && (
+          <p className="text-xs text-muted-foreground">
+            Waktu respon {task.delayThresholdHours} jam sudah lewat. Step aktif{" "}
+            {formatDelayDuration(task.waitingHours)} sejak trigger (step
+            sebelumnya selesai).
+          </p>
+        )}
         {(task.incomingNotes?.length ?? 0) > 0 && (
           <IncomingStepNotes notes={task.incomingNotes ?? []} compact />
         )}

@@ -5,6 +5,7 @@ import { daysSinceWib } from "@/lib/format"
 import {
   hoursSince,
   isPastDelayThreshold,
+  overdueHours,
   resolveDelayHours,
 } from "@/lib/projects/delay"
 import {
@@ -62,6 +63,7 @@ export type DashboardActiveStep = {
   isHogger: boolean
   isWaitingWarning: boolean
   isDelayed: boolean
+  overdueHours: number
 }
 
 export type DashboardProject = {
@@ -79,6 +81,7 @@ export type DashboardProject = {
   stageProgress: number
   maxWaitingDays: number
   maxWaitingHours: number
+  maxOverdueHours: number
   isHogger: boolean
   isWaitingWarning: boolean
   isDelayed: boolean
@@ -143,6 +146,7 @@ function enrichProject(
       isHogger: project.status === "active" && waitingDays > hoggerDays,
       isWaitingWarning: project.status === "active" && waitingDays > warningDays,
       isDelayed,
+      overdueHours: isDelayed ? overdueHours(waitingHours, delayHours) : 0,
     }
   })
 
@@ -183,6 +187,10 @@ function enrichProject(
     stageProgress: Math.round((currentStage / TOTAL_STAGE_COUNT) * 100),
     maxWaitingDays,
     maxWaitingHours,
+    maxOverdueHours: activeSteps.reduce(
+      (max, s) => Math.max(max, s.overdueHours),
+      0
+    ),
     isHogger: project.status === "active" && maxWaitingDays > hoggerDays,
     isWaitingWarning: project.status === "active" && maxWaitingDays > warningDays,
     isDelayed,

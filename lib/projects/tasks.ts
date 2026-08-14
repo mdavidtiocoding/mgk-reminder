@@ -74,6 +74,7 @@ export type MyTask = {
   isWaitingWarning: boolean
   isDelayed: boolean
   waitingHours: number
+  delayThresholdHours: number
   canComplete: boolean
   canFollowUp: boolean
   substeps: SubstepDefinition[]
@@ -205,6 +206,7 @@ export async function getMyTasks(
         isHogger: waitingDays > thresholds.hoggerDays,
         isWaitingWarning: waitingDays > thresholds.warningDays,
         isDelayed,
+        delayThresholdHours: delayHours,
         canComplete: userCanWorkDivision(userDivisions, step.division),
         canFollowUp:
           isUserAdmin(userDivisions) ||
@@ -275,6 +277,10 @@ export async function getMyTasks(
         isHogger: waitingDays > thresholds.hoggerDays,
         isWaitingWarning: waitingDays > thresholds.warningDays,
         isDelayed: false,
+        delayThresholdHours: resolveDelayHours(
+          step.delayHours,
+          thresholds.delayHours
+        ),
         canComplete: userCanWorkDivision(userDivisions, step.division),
         canFollowUp:
           isUserAdmin(userDivisions) ||

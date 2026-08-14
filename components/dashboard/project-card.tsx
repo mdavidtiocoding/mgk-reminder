@@ -66,7 +66,7 @@ export function ProjectCard({ project, variant = "classic" }: ProjectCardProps) 
               isDelayed={showDelay}
               delayLabel={
                 showDelay
-                  ? `Delay ${formatDelayDuration(project.maxWaitingHours)}`
+                  ? `Delay ${formatDelayDuration(project.maxOverdueHours)}`
                   : undefined
               }
               isWaitingWarning={project.isWaitingWarning}

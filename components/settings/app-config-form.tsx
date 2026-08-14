@@ -76,7 +76,7 @@ export function AppConfigForm({
     <div className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="delay-hours">Delay (jam)</Label>
+          <Label htmlFor="delay-hours">Waktu respon (jam)</Label>
           <Input
             id="delay-hours"
             type="number"
@@ -87,8 +87,9 @@ export function AppConfigForm({
             className="h-8"
           />
           <p className="text-xs text-muted-foreground">
-            Setelah unlock, baru dihitung Delay. Default 12 jam. Bisa di-override
-            per step di Flow Config. Admin My Tasks hanya menampilkan yang Delay.
+            Setelah trigger/unlock, tim punya waktu ini untuk respon (default
+            24 jam = 1×24). Baru Delay kalau sudah lewat. Bisa di-override per
+            step di Flow Config sesuai urgency.
           </p>
         </div>
         <div className="flex flex-col gap-1.5">

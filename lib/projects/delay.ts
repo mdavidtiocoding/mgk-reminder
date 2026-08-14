@@ -30,10 +30,20 @@ export function isPastDelayThreshold(
   return hoursSince(unlockedAt) >= delayHours
 }
 
-/** Label for Delay badge, e.g. "12 jam" or "2 hari". */
+/** Label for elapsed/overdue time, e.g. "12 jam" or "2 hari". */
 export function formatDelayDuration(elapsedHours: number): string {
   const hours = Math.max(0, Math.floor(elapsedHours))
-  if (hours < 24) return `${Math.max(1, hours)} jam`
+  if (hours < 24) return `${hours} jam`
   const days = Math.floor(hours / 24)
-  return `${days} hari`
+  const rem = hours % 24
+  if (rem === 0) return `${days} hari`
+  return `${days} hari ${rem} jam`
+}
+
+/** How long past the response window. */
+export function overdueHours(
+  elapsedHours: number,
+  delayHours: number
+): number {
+  return Math.max(0, elapsedHours - delayHours)
 }
