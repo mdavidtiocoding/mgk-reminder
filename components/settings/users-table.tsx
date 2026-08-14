@@ -66,12 +66,12 @@ export function UsersTable({
       <table className="w-full table-fixed text-sm">
         <thead>
           <tr className="border-b bg-muted/40 text-left">
-            <th className="w-[14%] px-3 py-2 font-medium">Nama</th>
-            <th className="w-[24%] px-3 py-2 font-medium">Email</th>
+            <th className="w-[16%] px-3 py-2 font-medium">Nama</th>
+            <th className="w-[26%] px-3 py-2 font-medium">Email</th>
             <th className="w-[18%] px-3 py-2 font-medium">Divisi</th>
-            <th className="w-[22%] px-3 py-2 font-medium">Status</th>
+            <th className="w-[18%] px-3 py-2 font-medium">Status</th>
             <th className="w-[12%] px-3 py-2 font-medium">Bergabung</th>
-            <th className="w-[10%] px-3 py-2 font-medium">Aksi</th>
+            <th className="w-px whitespace-nowrap px-3 py-2 font-medium">Aksi</th>
           </tr>
         </thead>
         <tbody>
@@ -245,12 +245,12 @@ function UserTableRow({
       <td className="px-3 py-2 text-muted-foreground">
         {formatDate(user.created_at)}
       </td>
-      <td className="px-3 py-2">
-        <div className="flex flex-wrap items-center gap-1.5">
+      <td className="whitespace-nowrap px-3 py-2">
+        <div className="flex flex-nowrap items-center gap-1.5">
           <Button
             size="sm"
             variant="outline"
-            className="h-7 text-xs"
+            className="h-7 shrink-0 px-2.5 text-xs"
             disabled={isPending}
             onClick={openEditDialog}
           >
@@ -302,7 +302,7 @@ function UserTableRow({
               <Button
                 size="sm"
                 variant="destructive"
-                className="h-7 text-xs"
+                className="h-7 shrink-0 px-2.5 text-xs"
                 disabled={isPending}
                 onClick={() => {
                   setDeleteError(null)
