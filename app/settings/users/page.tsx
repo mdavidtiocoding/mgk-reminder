@@ -14,12 +14,13 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { requirePermission } from "@/lib/auth/require-permission"
-import { resolveUserDivisions } from "@/lib/auth/user-divisions"
+import { isUserSuperAdmin } from "@/lib/auth/user-divisions"
 import type { Division } from "@/lib/steps"
 
 export default async function UserManagementPage() {
   const { profile, user, userDivisions } = await requirePermission("settings_users")
   const users = await listUsers()
+  const canAssignSuperAdmin = isUserSuperAdmin(userDivisions)
 
   return (
     <AppShell
@@ -38,7 +39,11 @@ export default async function UserManagementPage() {
         <div>
           <h2 className="text-base font-medium">User Management</h2>
           <p className="text-sm text-muted-foreground">
-            Admin only — kelola user, assign divisi (bisa lebih dari satu), dan setujui pendaftar baru.
+            Kelola user, assign divisi (bisa lebih dari satu), dan setujui
+            pendaftar baru.
+            {canAssignSuperAdmin
+              ? " Anda Super Admin — boleh assign role Super Admin."
+              : ""}
           </p>
         </div>
 
@@ -50,7 +55,7 @@ export default async function UserManagementPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <CreateUserForm />
+            <CreateUserForm canAssignSuperAdmin={canAssignSuperAdmin} />
           </CardContent>
         </Card>
 
@@ -70,6 +75,7 @@ export default async function UserManagementPage() {
                 status: u.status as "pending" | "active" | "suspended",
               }))}
               currentUserId={user.id}
+              canAssignSuperAdmin={canAssignSuperAdmin}
             />
           </CardContent>
         </Card>

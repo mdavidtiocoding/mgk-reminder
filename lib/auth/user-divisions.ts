@@ -13,6 +13,7 @@ const VALID_DIVISIONS = new Set<string>([
   "shipping",
   "project",
   "admin",
+  "super_admin",
 ])
 
 function isDivision(value: string): value is Division {
@@ -42,24 +43,33 @@ export function resolveUserDivisions(
   return [...merged]
 }
 
+/** Admin biasa atau Super Admin — akses admin umum (RLS-like di app). */
 export function isUserAdmin(userDivisions: Division[]): boolean {
-  return userDivisions.includes("admin")
+  return (
+    userDivisions.includes("admin") || userDivisions.includes("super_admin")
+  )
+}
+
+/** Hanya Super Admin — boleh edit matriks role & assign role Super Admin. */
+export function isUserSuperAdmin(userDivisions: Division[]): boolean {
+  return userDivisions.includes("super_admin")
 }
 
 export function userHasDivision(
   userDivisions: Division[],
   target: Division
 ): boolean {
-  if (userDivisions.includes("admin")) return true
+  if (isUserAdmin(userDivisions)) return true
   return userDivisions.includes(target)
 }
 
 /**
  * Primary division for the legacy `division` column.
- * Prefer admin when present so older checks (`division === "admin"`) keep working.
+ * Prefer super_admin, then admin, so older checks keep working.
  */
 export function getPrimaryDivision(userDivisions: Division[]): Division | null {
   if (userDivisions.length === 0) return null
+  if (userDivisions.includes("super_admin")) return "super_admin"
   if (userDivisions.includes("admin")) return "admin"
   return userDivisions[0] ?? null
 }

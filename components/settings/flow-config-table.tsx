@@ -383,7 +383,7 @@ export function FlowConfigTable({
           <SelectContent>
             <SelectItem value="all">Semua divisi</SelectItem>
             {(Object.entries(DIVISION_LABELS) as [Division, string][])
-              .filter(([division]) => division !== "admin")
+              .filter(([division]) => division !== "admin" && division !== "super_admin")
               .map(([division, label]) => (
                 <SelectItem key={division} value={division}>
                   {label}

@@ -12,6 +12,8 @@ type DivisionMultiSelectProps = {
   className?: string
   /** Hide admin unless explicitly needed (e.g. create admin user). */
   includeAdmin?: boolean
+  /** Super Admin hanya boleh di-assign oleh Super Admin. */
+  includeSuperAdmin?: boolean
 }
 
 const ALL_DIVISIONS = Object.keys(DIVISION_LABELS) as Division[]
@@ -22,10 +24,13 @@ export function DivisionMultiSelect({
   disabled = false,
   className,
   includeAdmin = true,
+  includeSuperAdmin = false,
 }: DivisionMultiSelectProps) {
-  const options = includeAdmin
-    ? ALL_DIVISIONS
-    : ALL_DIVISIONS.filter((d) => d !== "admin")
+  const options = ALL_DIVISIONS.filter((d) => {
+    if (d === "super_admin") return includeSuperAdmin
+    if (d === "admin") return includeAdmin
+    return true
+  })
 
   function toggle(division: Division, checked: boolean) {
     if (checked) {

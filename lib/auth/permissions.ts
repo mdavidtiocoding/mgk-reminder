@@ -33,7 +33,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   settings_flow: "Settings → Flow config",
   settings_demo: "Settings → Demo preview",
   settings_app_config: "Settings → Threshold HOGGER",
-  settings_permissions: "Settings → Akses role (matriks ini)",
+  settings_permissions: "Settings → Akses role (lihat matriks)",
   settings_audit: "Settings → Audit log",
 }
 
@@ -75,6 +75,7 @@ export const ROLE_KEYS = [
   "shipping",
   "project",
   "admin",
+  "super_admin",
 ] as const satisfies readonly Division[]
 
 export type RoleKey = (typeof ROLE_KEYS)[number]
@@ -86,15 +87,21 @@ export type RolePermissionsMatrix = Record<
 
 const APP_CONFIG_KEY = "role_permissions"
 
+function allPermissionsOn(): Record<PermissionKey, boolean> {
+  return Object.fromEntries(
+    PERMISSION_KEYS.map((k) => [k, true])
+  ) as Record<PermissionKey, boolean>
+}
+
 function defaultForRole(role: RoleKey): Record<PermissionKey, boolean> {
   const allFalse = Object.fromEntries(
     PERMISSION_KEYS.map((k) => [k, false])
   ) as Record<PermissionKey, boolean>
 
-  if (role === "admin") {
-    return Object.fromEntries(
-      PERMISSION_KEYS.map((k) => [k, true])
-    ) as Record<PermissionKey, boolean>
+  // Super Admin & Admin: semua akses on by default.
+  // Edit matriks hanya Super Admin (dicek di server action / UI readOnly).
+  if (role === "super_admin" || role === "admin") {
+    return allPermissionsOn()
   }
 
   // Match current product defaults (pre-matrix behavior).
@@ -143,8 +150,8 @@ export function normalizeRolePermissions(
         next[key] = value
       }
     }
-    // Never lock admin out of editing the matrix.
-    if (role === "admin") {
+    // Super Admin tidak boleh kehilangan akses ke halaman matriks.
+    if (role === "super_admin") {
       next.settings_permissions = true
     }
     result[role] = next

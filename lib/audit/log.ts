@@ -13,6 +13,7 @@ export type AuditAction =
   | "adhoc.create"
   | "adhoc.resolve"
   | "user.create"
+  | "user.update_name"
   | "user.update_divisions"
   | "user.update_status"
   | "user.delete"

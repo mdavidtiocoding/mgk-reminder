@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { getRolePermissions, userHasPermission } from "@/lib/auth/permissions"
+import { loadProfileDisplayNames } from "@/lib/auth/profile-names"
 import { userHasDivision } from "@/lib/auth/user-divisions"
 import { computeProjectSteps, type CompletionInfo } from "@/lib/projects/active-steps"
 import { buildStepFlowWarnings } from "@/lib/projects/flow-warnings"
@@ -36,7 +37,6 @@ type CompletionRow = {
   completed_by: string
   note: string | null
   outcome: string | null
-  profile: { name: string } | { name: string }[] | null
 }
 
 type ReminderRow = {
@@ -168,8 +168,7 @@ export async function getProjectDetail(
         completed_at,
         completed_by,
         note,
-        outcome,
-        profile:profiles(name)
+        outcome
       ),
       reminder_log(step_code, sent_at, channel),
       followup_schedule(step_code, scheduled_date, scheduled_time, note)
@@ -193,6 +192,11 @@ export async function getProjectDetail(
   for (const completion of project.step_completions ?? []) {
     completionByCode.set(completion.step_code, completion)
   }
+
+  const completerNames = await loadProfileDisplayNames(supabase, [
+    ...(project.step_completions ?? []).map((c) => c.completed_by),
+    ...substepCompletions.map((c) => c.completedBy),
+  ])
 
   const lastReminderByStep = new Map<string, string>()
   for (const log of project.reminder_log ?? []) {
@@ -251,7 +255,9 @@ export async function getProjectDetail(
       status: computed.status,
       prerequisites: step.prerequisites,
       completedAt: completion?.completed_at ?? computed.completion?.completedAt,
-      completedByName: normalizeRelation(completion?.profile ?? null)?.name,
+      completedByName: completion?.completed_by
+        ? completerNames.get(completion.completed_by)
+        : undefined,
       note: completion?.note,
       outcome: completion?.outcome,
       lastReminderAt:

@@ -8,6 +8,7 @@ export type Division =
   | "shipping"
   | "project"
   | "admin"
+  | "super_admin"
 
 export type ProjectStatus = "active" | "completed" | "on_hold"
 
@@ -406,6 +407,7 @@ export const DIVISION_LABELS: Record<Division, string> = {
   shipping: "Shipping",
   project: "Project",
   admin: "Admin",
+  super_admin: "Super Admin",
 }
 
 /** Shared per-division visual accents (left border + small badge) used across the UI. */
@@ -417,6 +419,7 @@ export const DIVISION_BADGE_STYLES: Record<Division, { border: string; badge: st
   shipping: { border: "border-l-cyan-400", badge: "bg-cyan-100 text-cyan-700" },
   logistik: { border: "border-l-yellow-400", badge: "bg-yellow-100 text-yellow-700" },
   admin: { border: "border-l-slate-400", badge: "bg-slate-100 text-slate-700" },
+  super_admin: { border: "border-l-rose-500", badge: "bg-rose-100 text-rose-800" },
 }
 
 export const STAGE_LABELS: Record<number, string> = {

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { loadProfileDisplayNames } from "@/lib/auth/profile-names"
 import type { SubstepCompletion } from "@/lib/steps/substeps"
 
 type SubstepRow = {
@@ -10,25 +11,21 @@ type SubstepRow = {
   completed_by?: string
   note?: string | null
   event_date?: string | null
-  profile?: { name: string } | { name: string }[] | null
 }
 
-function normalizeProfile(
-  profile: SubstepRow["profile"]
-): { name: string } | null {
-  if (!profile) return null
-  if (Array.isArray(profile)) return profile[0] ?? null
-  return profile
-}
-
-function mapRow(row: SubstepRow): SubstepCompletion & { projectId: string } {
+function mapRow(
+  row: SubstepRow,
+  names: Map<string, string>
+): SubstepCompletion & { projectId: string } {
   return {
     projectId: row.project_id,
     stepCode: row.step_code,
     substepKey: row.substep_key,
     completedAt: row.completed_at,
     completedBy: row.completed_by,
-    completedByName: normalizeProfile(row.profile)?.name ?? null,
+    completedByName: row.completed_by
+      ? names.get(row.completed_by) ?? null
+      : null,
     note: row.note,
     eventDate: row.event_date ?? null,
   }
@@ -49,12 +46,12 @@ export async function loadSubstepCompletionsMap(
     }
 
     const withEventDate = await buildQuery(
-      "project_id, step_code, substep_key, completed_at, completed_by, note, event_date, profile:profiles(name)"
+      "project_id, step_code, substep_key, completed_at, completed_by, note, event_date"
     )
 
     const { data, error } = withEventDate.error
       ? await buildQuery(
-          "project_id, step_code, substep_key, completed_at, completed_by, note, profile:profiles(name)"
+          "project_id, step_code, substep_key, completed_at, completed_by, note"
         )
       : withEventDate
 
@@ -63,9 +60,15 @@ export async function loadSubstepCompletionsMap(
       return new Map()
     }
 
+    const rows = (data ?? []) as unknown as SubstepRow[]
+    const names = await loadProfileDisplayNames(
+      supabase,
+      rows.map((row) => row.completed_by)
+    )
+
     const map = new Map<string, SubstepCompletion[]>()
-    for (const row of (data ?? []) as unknown as SubstepRow[]) {
-      const mapped = mapRow(row)
+    for (const row of rows) {
+      const mapped = mapRow(row, names)
       const list = map.get(mapped.projectId) ?? []
       list.push(mapped)
       map.set(mapped.projectId, list)

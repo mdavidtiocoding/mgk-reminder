@@ -49,7 +49,7 @@ export function FlowConfigLegend({ compact = false }: { compact?: boolean }) {
             <p className="mb-2 text-xs font-medium">Badge divisi (PIC step)</p>
             <div className="flex flex-wrap gap-1.5">
               {(Object.entries(DIVISION_LABELS) as [Division, string][])
-                .filter(([d]) => d !== "admin")
+                .filter(([d]) => d !== "admin" && d !== "super_admin")
                 .map(([division, label]) => (
                   <span
                     key={division}

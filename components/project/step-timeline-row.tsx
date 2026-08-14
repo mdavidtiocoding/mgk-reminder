@@ -116,12 +116,12 @@ function StepDoneBody({
   return (
     <div className="mt-3 space-y-3">
       <div className="space-y-1 text-sm text-muted-foreground">
-        {step.completedByName && (
-          <p>
-            Selesai oleh:{" "}
-            <span className="text-foreground">{step.completedByName}</span>
-          </p>
-        )}
+        <p>
+          Selesai oleh:{" "}
+          <span className="text-foreground">
+            {step.completedByName ?? "—"}
+          </span>
+        </p>
         {step.completedAt && <p>{formatDateTime(step.completedAt)}</p>}
         {step.outcome && step.outcome !== "skipped" && (
           <p>

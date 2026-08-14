@@ -8,6 +8,7 @@ import {
   type RolePermissionsMatrix,
 } from "@/lib/auth/permissions"
 import { resolveActorName, writeAuditLog } from "@/lib/audit/log"
+import { isUserSuperAdmin } from "@/lib/auth/user-divisions"
 import { assertPermission } from "@/lib/auth/require-permission"
 
 export type SaveRolePermissionsResult =
@@ -20,9 +21,16 @@ export async function saveRolePermissions(
   const auth = await assertPermission("settings_permissions")
   if (!auth.ok) return { success: false, error: auth.error }
 
+  if (!isUserSuperAdmin(auth.ctx.userDivisions)) {
+    return {
+      success: false,
+      error: "Hanya Super Admin yang boleh mengubah akses role.",
+    }
+  }
+
   const normalized = normalizeRolePermissions(matrix)
-  // Hard lock: admin always keeps matrix editor.
-  normalized.admin.settings_permissions = true
+  // Hard lock: Super Admin always keeps matrix page access.
+  normalized.super_admin.settings_permissions = true
 
   const payload = JSON.stringify(normalized)
   const { error } = await auth.ctx.supabase.from("app_config").upsert(

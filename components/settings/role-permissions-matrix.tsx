@@ -19,10 +19,13 @@ import { cn } from "@/lib/utils"
 
 type RolePermissionsMatrixFormProps = {
   initialMatrix: RolePermissionsMatrix
+  /** false = Admin biasa — hanya lihat. true = Super Admin — boleh edit. */
+  canEdit?: boolean
 }
 
 export function RolePermissionsMatrixForm({
   initialMatrix,
+  canEdit = false,
 }: RolePermissionsMatrixFormProps) {
   const router = useRouter()
   const [matrix, setMatrix] = useState(initialMatrix)
@@ -35,8 +38,12 @@ export function RolePermissionsMatrixForm({
     [matrix, initialMatrix]
   )
 
+  function isLocked(role: RoleKey, key: PermissionKey): boolean {
+    return role === "super_admin" && key === "settings_permissions"
+  }
+
   function toggle(role: RoleKey, key: PermissionKey) {
-    if (role === "admin" && key === "settings_permissions") return
+    if (!canEdit || isLocked(role, key)) return
     setSaved(false)
     setMatrix((prev) => ({
       ...prev,
@@ -48,19 +55,21 @@ export function RolePermissionsMatrixForm({
   }
 
   function setRoleAll(role: RoleKey, value: boolean) {
+    if (!canEdit) return
     setSaved(false)
     setMatrix((prev) => ({
       ...prev,
       [role]: Object.fromEntries(
         PERMISSION_KEYS.map((key) => [
           key,
-          role === "admin" && key === "settings_permissions" ? true : value,
+          isLocked(role, key) ? true : value,
         ])
       ) as Record<PermissionKey, boolean>,
     }))
   }
 
   function handleSave() {
+    if (!canEdit) return
     setError(null)
     startTransition(async () => {
       const result = await saveRolePermissions(matrix)
@@ -77,12 +86,14 @@ export function RolePermissionsMatrixForm({
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">
         Centang akses per role (divisi). User dengan beberapa divisi mendapat
-        gabungan centangan. Role Admin tidak bisa kehilangan akses ke matriks
-        ini.
+        gabungan centangan.{" "}
+        {canEdit
+          ? "Hanya Super Admin yang boleh mengubah matriks. Role Super Admin tidak bisa kehilangan akses ke halaman ini."
+          : "Anda login sebagai Admin — matriks hanya bisa dilihat. Minta Super Admin untuk mengubah akses."}
       </p>
 
       <div className="overflow-x-auto rounded-xl border">
-        <table className="w-full min-w-[52rem] border-collapse text-sm">
+        <table className="w-full min-w-[58rem] border-collapse text-sm">
           <thead>
             <tr className="border-b bg-muted/40">
               <th className="sticky left-0 z-10 bg-muted/40 px-3 py-2.5 text-left font-medium">
@@ -95,23 +106,27 @@ export function RolePermissionsMatrixForm({
                 >
                   <div className="flex flex-col items-center gap-1">
                     <span>{getRoleLabel(role)}</span>
-                    <div className="flex gap-1">
-                      <button
-                        type="button"
-                        className="text-[10px] text-primary hover:underline"
-                        onClick={() => setRoleAll(role, true)}
-                      >
-                        Semua
-                      </button>
-                      <span className="text-[10px] text-muted-foreground">/</span>
-                      <button
-                        type="button"
-                        className="text-[10px] text-muted-foreground hover:underline"
-                        onClick={() => setRoleAll(role, false)}
-                      >
-                        Kosong
-                      </button>
-                    </div>
+                    {canEdit && (
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          className="text-[10px] text-primary hover:underline"
+                          onClick={() => setRoleAll(role, true)}
+                        >
+                          Semua
+                        </button>
+                        <span className="text-[10px] text-muted-foreground">
+                          /
+                        </span>
+                        <button
+                          type="button"
+                          className="text-[10px] text-muted-foreground hover:underline"
+                          onClick={() => setRoleAll(role, false)}
+                        >
+                          Kosong
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </th>
               ))}
@@ -134,8 +149,7 @@ export function RolePermissionsMatrixForm({
                       {PERMISSION_LABELS[key]}
                     </td>
                     {ROLE_KEYS.map((role) => {
-                      const locked =
-                        role === "admin" && key === "settings_permissions"
+                      const locked = isLocked(role, key)
                       const checked = matrix[role][key]
                       return (
                         <td key={role} className="px-2 py-2 text-center">
@@ -143,10 +157,11 @@ export function RolePermissionsMatrixForm({
                             type="checkbox"
                             className={cn(
                               "size-4 rounded border accent-primary",
-                              locked && "cursor-not-allowed opacity-60"
+                              (!canEdit || locked) &&
+                                "cursor-not-allowed opacity-60"
                             )}
                             checked={checked}
-                            disabled={locked || isPending}
+                            disabled={!canEdit || locked || isPending}
                             onChange={() => toggle(role, key)}
                             aria-label={`${PERMISSION_LABELS[key]} — ${getRoleLabel(role)}`}
                           />
@@ -170,31 +185,37 @@ export function RolePermissionsMatrixForm({
         <p className="text-sm text-emerald-700">Tersimpan.</p>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          size="sm"
-          disabled={!dirty || isPending}
-          onClick={handleSave}
-        >
-          {isPending ? "Menyimpan…" : "Simpan akses"}
-        </Button>
-        {dirty && (
+      {canEdit ? (
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
             size="sm"
-            variant="ghost"
-            disabled={isPending}
-            onClick={() => {
-              setMatrix(initialMatrix)
-              setError(null)
-              setSaved(false)
-            }}
+            disabled={!dirty || isPending}
+            onClick={handleSave}
           >
-            Batalkan
+            {isPending ? "Menyimpan…" : "Simpan akses"}
           </Button>
-        )}
-      </div>
+          {dirty && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={isPending}
+              onClick={() => {
+                setMatrix(initialMatrix)
+                setError(null)
+                setSaved(false)
+              }}
+            >
+              Batalkan
+            </Button>
+          )}
+        </div>
+      ) : (
+        <p className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          Mode lihat saja — tombol simpan disembunyikan.
+        </p>
+      )}
     </div>
   )
 }

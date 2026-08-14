@@ -10,7 +10,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { Division } from "@/lib/steps"
 
-export function CreateUserForm() {
+export function CreateUserForm({
+  canAssignSuperAdmin = false,
+}: {
+  canAssignSuperAdmin?: boolean
+}) {
   const router = useRouter()
   const [divisions, setDivisions] = useState<Division[]>(["marketing"])
   const [error, setError] = useState<string | null>(null)
@@ -69,7 +73,11 @@ export function CreateUserForm() {
         </div>
         <div className="flex flex-col gap-2 sm:col-span-2">
           <Label>Divisi</Label>
-          <DivisionMultiSelect value={divisions} onChange={setDivisions} />
+          <DivisionMultiSelect
+            value={divisions}
+            onChange={setDivisions}
+            includeSuperAdmin={canAssignSuperAdmin}
+          />
         </div>
       </div>
 

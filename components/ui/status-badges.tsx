@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   CircleDollarSign,
   ClipboardList,
+  Crown,
   Mail,
   Package,
   PauseCircle,
@@ -28,6 +29,7 @@ const DIVISION_ICONS: Record<Division, LucideIcon> = {
   logistik: Package,
   project: Wrench,
   admin: ClipboardList,
+  super_admin: Crown,
 }
 
 type ProjectStatusBadgeProps = {

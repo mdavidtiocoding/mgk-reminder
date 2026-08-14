@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import type { ProfileStatus } from "@/lib/auth/profile-status"
 import {
   divisionsToPrimaryColumn,
+  isUserSuperAdmin,
   normalizeDivisionsInput,
   resolveUserDivisions,
 } from "@/lib/auth/user-divisions"
@@ -26,6 +27,7 @@ const DIVISIONS: Division[] = [
   "shipping",
   "project",
   "admin",
+  "super_admin",
 ]
 
 const PROFILE_STATUSES: ProfileStatus[] = ["pending", "active", "suspended"]
@@ -80,6 +82,16 @@ export async function createUser(
 
   if (!divisions.every((d) => DIVISIONS.includes(d))) {
     return { success: false, error: "Division tidak valid." }
+  }
+
+  if (
+    divisions.includes("super_admin") &&
+    !isUserSuperAdmin(auth.ctx.userDivisions)
+  ) {
+    return {
+      success: false,
+      error: "Hanya Super Admin yang boleh assign role Super Admin.",
+    }
   }
 
   const primaryDivision = divisionsToPrimaryColumn(divisions)
@@ -147,7 +159,16 @@ export async function updateUserDivisions(
     return { success: false, error: "Division tidak valid." }
   }
 
-  const primaryDivision = divisionsToPrimaryColumn(normalized)
+  if (
+    normalized.includes("super_admin") &&
+    !isUserSuperAdmin(auth.ctx.userDivisions)
+  ) {
+    return {
+      success: false,
+      error: "Hanya Super Admin yang boleh assign role Super Admin.",
+    }
+  }
+
   const service = createServiceClient()
   if (!service) {
     return {
@@ -155,6 +176,26 @@ export async function updateUserDivisions(
       error: "SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi.",
     }
   }
+
+  const { data: existing } = await service
+    .from("profiles")
+    .select("division, divisions")
+    .eq("id", userId)
+    .maybeSingle()
+
+  const existingDivisions = resolveUserDivisions(existing)
+  if (
+    existingDivisions.includes("super_admin") &&
+    !normalized.includes("super_admin") &&
+    !isUserSuperAdmin(auth.ctx.userDivisions)
+  ) {
+    return {
+      success: false,
+      error: "Hanya Super Admin yang boleh menghapus role Super Admin.",
+    }
+  }
+
+  const primaryDivision = divisionsToPrimaryColumn(normalized)
 
   const { error } = await service
     .from("profiles")
@@ -189,6 +230,61 @@ export async function updateUserDivision(
   division: Division
 ): Promise<UserActionResult> {
   return updateUserDivisions(userId, [division])
+}
+
+export async function updateUserName(
+  userId: string,
+  name: string
+): Promise<UserActionResult> {
+  const auth = await assertAdmin()
+  if (!auth.ok) return { success: false, error: auth.error }
+
+  const trimmed = name.trim()
+  if (!trimmed) {
+    return { success: false, error: "Nama wajib diisi." }
+  }
+  if (trimmed.length > 80) {
+    return { success: false, error: "Nama maksimal 80 karakter." }
+  }
+
+  const service = createServiceClient()
+  if (!service) {
+    return {
+      success: false,
+      error: "SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi.",
+    }
+  }
+
+  const { error } = await service
+    .from("profiles")
+    .update({ name: trimmed })
+    .eq("id", userId)
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  await service.auth.admin.updateUserById(userId, {
+    user_metadata: { name: trimmed },
+  })
+
+  const actorName = await resolveActorName(
+    auth.ctx.user.id,
+    auth.ctx.profile?.name ?? auth.ctx.user.email
+  )
+  await writeAuditLog({
+    actorId: auth.ctx.user.id,
+    actorName,
+    action: "user.update_name",
+    summary: `Ubah nama user → ${trimmed}`,
+    entityType: "user",
+    entityId: userId,
+    meta: { name: trimmed },
+  })
+
+  revalidatePath("/settings/users")
+  revalidatePath("/", "layout")
+  return { success: true }
 }
 
 export async function updateUserStatus(

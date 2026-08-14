@@ -3,12 +3,14 @@
 import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 
-import { deleteUser, updateUserDivisions, updateUserStatus } from "@/app/actions/users"
+import { deleteUser, updateUserDivisions, updateUserName, updateUserStatus } from "@/app/actions/users"
 import {
   DivisionMultiSelect,
   formatDivisionSelection,
 } from "@/components/settings/division-multi-select"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Dialog,
   DialogContent,
@@ -47,9 +49,11 @@ const PROFILE_STATUSES: ProfileStatus[] = ["pending", "active", "suspended"]
 export function UsersTable({
   users,
   currentUserId,
+  canAssignSuperAdmin = false,
 }: {
   users: UserRow[]
   currentUserId: string
+  canAssignSuperAdmin?: boolean
 }) {
   if (users.length === 0) {
     return (
@@ -76,6 +80,7 @@ export function UsersTable({
               key={user.id}
               user={user}
               isSelf={user.id === currentUserId}
+              canAssignSuperAdmin={canAssignSuperAdmin}
             />
           ))}
         </tbody>
@@ -87,24 +92,35 @@ export function UsersTable({
 function UserTableRow({
   user,
   isSelf,
+  canAssignSuperAdmin = false,
 }: {
   user: UserRow
   isSelf: boolean
+  canAssignSuperAdmin?: boolean
 }) {
   const router = useRouter()
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
   const [divisionOpen, setDivisionOpen] = useState(false)
   const [divisionError, setDivisionError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [editError, setEditError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const currentDivisions = resolveUserDivisions(user)
   const [draftDivisions, setDraftDivisions] = useState<Division[]>(currentDivisions)
+  const [draftName, setDraftName] = useState(user.name)
 
   function openDivisionDialog() {
     setDraftDivisions(currentDivisions)
     setDivisionError(null)
     setDivisionOpen(true)
+  }
+
+  function openEditDialog() {
+    setDraftName(user.name)
+    setEditError(null)
+    setEditOpen(true)
   }
 
   function handleDelete() {
@@ -116,6 +132,19 @@ function UserTableRow({
         return
       }
       setDeleteOpen(false)
+      router.refresh()
+    })
+  }
+
+  function handleSaveName() {
+    setEditError(null)
+    startTransition(async () => {
+      const result = await updateUserName(user.id, draftName)
+      if (!result.success) {
+        setEditError(result.error)
+        return
+      }
+      setEditOpen(false)
       router.refresh()
     })
   }
@@ -169,6 +198,7 @@ function UserTableRow({
               value={draftDivisions}
               onChange={setDraftDivisions}
               disabled={isPending}
+              includeSuperAdmin={canAssignSuperAdmin}
             />
             {divisionError && (
               <p className="text-sm text-destructive" role="alert">
@@ -216,57 +246,107 @@ function UserTableRow({
         {formatDate(user.created_at)}
       </td>
       <td className="px-3 py-2">
-        {!isSelf ? (
-          <>
-            <Button
-              size="sm"
-              variant="destructive"
-              className="h-7 text-xs"
-              disabled={isPending}
-              onClick={() => {
-                setDeleteError(null)
-                setDeleteOpen(true)
-              }}
-            >
-              Hapus
-            </Button>
-            <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Hapus user?</DialogTitle>
-                  <DialogDescription>
-                    User <strong>{user.name}</strong> ({user.email}) akan
-                    dihapus permanen dari sistem. Tindakan ini tidak bisa
-                    dibatalkan.
-                  </DialogDescription>
-                </DialogHeader>
-                {deleteError && (
-                  <p className="text-sm text-destructive" role="alert">
-                    {deleteError}
-                  </p>
-                )}
-                <DialogFooter>
-                  <Button
-                    variant="outline"
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs"
+            disabled={isPending}
+            onClick={openEditDialog}
+          >
+            Edit
+          </Button>
+          <Dialog open={editOpen} onOpenChange={setEditOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit user</DialogTitle>
+                <DialogDescription>
+                  Ubah nama tampilan. Nama ini muncul di &quot;Selesai oleh&quot;
+                  dan daftar user.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor={`edit-name-${user.id}`}>Nama</Label>
+                  <Input
+                    id={`edit-name-${user.id}`}
+                    value={draftName}
+                    onChange={(e) => setDraftName(e.target.value)}
                     disabled={isPending}
-                    onClick={() => setDeleteOpen(false)}
-                  >
-                    Batal
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    disabled={isPending}
-                    onClick={handleDelete}
-                  >
-                    {isPending ? "Menghapus..." : "Hapus user"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </>
-        ) : (
-          <span className="text-xs text-muted-foreground">—</span>
-        )}
+                    maxLength={80}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">{user.email}</p>
+              </div>
+              {editError && (
+                <p className="text-sm text-destructive" role="alert">
+                  {editError}
+                </p>
+              )}
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => setEditOpen(false)}
+                >
+                  Batal
+                </Button>
+                <Button disabled={isPending} onClick={handleSaveName}>
+                  {isPending ? "Menyimpan..." : "Simpan"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          {!isSelf ? (
+            <>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-7 text-xs"
+                disabled={isPending}
+                onClick={() => {
+                  setDeleteError(null)
+                  setDeleteOpen(true)
+                }}
+              >
+                Hapus
+              </Button>
+              <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Hapus user?</DialogTitle>
+                    <DialogDescription>
+                      User <strong>{user.name}</strong> ({user.email}) akan
+                      dihapus permanen dari sistem. Tindakan ini tidak bisa
+                      dibatalkan.
+                    </DialogDescription>
+                  </DialogHeader>
+                  {deleteError && (
+                    <p className="text-sm text-destructive" role="alert">
+                      {deleteError}
+                    </p>
+                  )}
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      disabled={isPending}
+                      onClick={() => setDeleteOpen(false)}
+                    >
+                      Batal
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      disabled={isPending}
+                      onClick={handleDelete}
+                    >
+                      {isPending ? "Menghapus..." : "Hapus user"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </>
+          ) : null}
+        </div>
       </td>
     </tr>
   )

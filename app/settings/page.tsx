@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label"
 import { getAppThresholds } from "@/lib/app-config"
 import { isDemoLoginMode } from "@/lib/app-login-mode.server"
 import { getPermissionContext } from "@/lib/auth/require-permission"
+import { isUserSuperAdmin } from "@/lib/auth/user-divisions"
 import { getUiTheme } from "@/lib/ui/theme.server"
 
 type SettingsPageProps = {
@@ -134,13 +135,17 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                     Akses per role
                   </CardTitle>
                   <CardDescription>
-                    Centang fitur yang boleh dipakai tiap divisi (Marketing,
-                    Finance, Admin, dll).
+                    Super Admin bisa edit matriks. Admin biasa hanya bisa
+                    melihat.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button size="sm" asChild>
-                    <Link href="/settings/permissions">Kelola akses role</Link>
+                    <Link href="/settings/permissions">
+                      {isUserSuperAdmin(userDivisions)
+                        ? "Kelola akses role"
+                        : "Lihat akses role"}
+                    </Link>
                   </Button>
                 </CardContent>
               </Card>
