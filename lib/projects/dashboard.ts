@@ -9,6 +9,10 @@ import {
   resolveDelayHours,
 } from "@/lib/projects/delay"
 import {
+  delayResponseKey,
+  loadActiveApprovedUntil,
+} from "@/lib/projects/delay-response"
+import {
   computeProjectSteps,
   getActiveComputedSteps,
   type CompletionInfo,
@@ -105,7 +109,8 @@ function enrichProject(
   warningDays: number,
   delayHoursDefault: number,
   runtimeSteps: Awaited<ReturnType<typeof loadRuntimeSteps>>,
-  substepCompletions: SubstepCompletion[] = []
+  substepCompletions: SubstepCompletion[] = [],
+  approvedUntilMap: Map<string, string> = new Map()
 ): DashboardProject {
   const completions: CompletionInfo[] = (project.step_completions ?? []).map((c) => ({
     stepCode: c.step_code,
@@ -133,9 +138,12 @@ function enrichProject(
       s.definition.delayHours,
       delayHoursDefault
     )
+    const approvedUntil =
+      approvedUntilMap.get(delayResponseKey(project.id, s.definition.code)) ??
+      null
     const isDelayed =
       project.status === "active" &&
-      isPastDelayThreshold(s.unlockedAt, delayHours)
+      isPastDelayThreshold(s.unlockedAt, delayHours, approvedUntil)
     return {
       code: s.definition.code,
       name: s.definition.name,
@@ -293,10 +301,11 @@ export async function getDashboardProjects(
   }
 
   const projectRows = (data ?? []) as ProjectRow[]
-  const substepMap = await loadSubstepCompletionsMap(
-    supabase,
-    projectRows.map((project) => project.id)
-  )
+  const projectIds = projectRows.map((project) => project.id)
+  const [substepMap, approvedUntilMap] = await Promise.all([
+    loadSubstepCompletionsMap(supabase, projectIds),
+    loadActiveApprovedUntil(supabase, projectIds),
+  ])
 
   const enriched = projectRows.map((project) =>
     enrichProject(
@@ -305,7 +314,8 @@ export async function getDashboardProjects(
       thresholds.warningDays,
       thresholds.delayHours,
       runtimeSteps,
-      substepMap.get(project.id) ?? []
+      substepMap.get(project.id) ?? [],
+      approvedUntilMap
     )
   )
   return sortProjects(filterProjects(enriched, filters), filters.sort)

@@ -98,10 +98,10 @@ export default async function MyTasksPage({
           </p>
           {isUserAdmin(userDivisions) && (
             <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              Catatan: Admin hanya review & follow up task yang Delay. Trigger
-              dulu kasih waktu respon (default 24 jam, custom di Settings atau
-              per step di Flow Config). Tim divisi yang kerjakan; admin follow
-              up.
+              Delay → <strong>Minta response</strong> ke divisi (alasan + minta
+              waktu). Setelah divisi kirim, kamu <strong>approve</strong>. Kalau
+              disetujui, Delay ditahan sampai tanggal itu & jadwal follow-up
+              masuk calendar. Atur Follow-up tetap bisa untuk jadwal terpisah.
             </p>
           )}
           <div className="mt-3">

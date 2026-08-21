@@ -18,6 +18,12 @@ import {
   isPastDelayThreshold,
   resolveDelayHours,
 } from "@/lib/projects/delay"
+import {
+  delayResponseKey,
+  loadActiveApprovedUntil,
+  loadOpenDelayResponses,
+  type DelayResponseRequest,
+} from "@/lib/projects/delay-response"
 import { type Division, getDivisionLabel } from "@/lib/steps"
 import { loadRuntimeSteps } from "@/lib/steps/runtime-config"
 import {
@@ -77,6 +83,10 @@ export type MyTask = {
   delayThresholdHours: number
   canComplete: boolean
   canFollowUp: boolean
+  /** Open delay-response thread (admin push → divisi → approve). */
+  delayResponse?: DelayResponseRequest | null
+  /** Approved grace deadline still in effect (YYYY-MM-DD). */
+  approvedUntil?: string | null
   substeps: SubstepDefinition[]
   substepCompletions: SubstepCompletion[]
   nextSubstepLabel: string | null
@@ -146,10 +156,13 @@ export async function getMyTasks(
 
   const projectRows = (data ?? []) as ProjectRow[]
   const projectIds = projectRows.map((project) => project.id)
-  const [substepMap, incomingByProject] = await Promise.all([
-    loadSubstepCompletionsMap(supabase, projectIds),
-    loadIncomingNotesForProjects(supabase, projectIds, runtimeSteps),
-  ])
+  const [substepMap, incomingByProject, openDelayResponses, approvedUntilMap] =
+    await Promise.all([
+      loadSubstepCompletionsMap(supabase, projectIds),
+      loadIncomingNotesForProjects(supabase, projectIds, runtimeSteps),
+      loadOpenDelayResponses(supabase, projectIds),
+      loadActiveApprovedUntil(supabase, projectIds),
+    ])
 
   const tasks: MyTask[] = []
   const adminView = isUserAdmin(userDivisions)
@@ -184,8 +197,18 @@ export async function getMyTasks(
         step.delayHours,
         thresholds.delayHours
       )
-      const isDelayed = isPastDelayThreshold(active.unlockedAt, delayHours)
-      if (adminView && !isDelayed) continue
+      const key = delayResponseKey(project.id, step.code)
+      const approvedUntil = approvedUntilMap.get(key) ?? null
+      const delayResponse = openDelayResponses.get(key) ?? null
+      const isDelayed = isPastDelayThreshold(
+        active.unlockedAt,
+        delayHours,
+        approvedUntil
+      )
+      // Admin: delayed steps + anything waiting approval (even if grace later)
+      if (adminView && !isDelayed && delayResponse?.status !== "awaiting_approval") {
+        continue
+      }
       const stepSubstepCompletions = substepCompletions.filter(
         (c) => c.stepCode === step.code
       )
@@ -211,6 +234,8 @@ export async function getMyTasks(
         canFollowUp:
           isUserAdmin(userDivisions) ||
           userCanWorkDivision(userDivisions, step.division),
+        delayResponse,
+        approvedUntil,
         substeps: step.substeps,
         substepCompletions: stepSubstepCompletions,
         nextSubstepLabel: nextSubstep?.label ?? null,
@@ -285,6 +310,8 @@ export async function getMyTasks(
         canFollowUp:
           isUserAdmin(userDivisions) ||
           userCanWorkDivision(userDivisions, step.division),
+        delayResponse: null,
+        approvedUntil: null,
         substeps: step.substeps,
         substepCompletions: stepSubstepCompletions,
         nextSubstepLabel: nextSubstep ? `${nextSubstep.label} (reminder)` : null,

@@ -1,4 +1,5 @@
 import { DELAY_THRESHOLD_HOURS } from "@/lib/constants"
+import { todayDateKeyWib } from "@/lib/format"
 
 export function parseDelayHours(value: unknown): number | null {
   if (value == null || value === "") return null
@@ -22,10 +23,18 @@ export function hoursSince(iso: string | Date): number {
   return Math.max(0, (Date.now() - start.getTime()) / 3_600_000)
 }
 
+/** True while approved extension date is still today or in the future (WIB). */
+export function isWithinApprovedGrace(approvedUntil: string | null | undefined): boolean {
+  if (!approvedUntil) return false
+  return approvedUntil >= todayDateKeyWib()
+}
+
 export function isPastDelayThreshold(
   unlockedAt: Date | string | null | undefined,
-  delayHours: number
+  delayHours: number,
+  approvedUntil?: string | null
 ): boolean {
+  if (isWithinApprovedGrace(approvedUntil)) return false
   if (!unlockedAt || delayHours < 1) return false
   return hoursSince(unlockedAt) >= delayHours
 }

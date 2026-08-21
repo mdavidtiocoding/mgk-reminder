@@ -11,10 +11,26 @@ type NotifyParams = {
   projectId: string
   projectName: string
   stepCode: string
-  type: "step_unlock" | "reminder" | "hogger" | "followup"
+  type:
+    | "step_unlock"
+    | "reminder"
+    | "hogger"
+    | "followup"
+    | "delay_push"
+    | "delay_submitted"
+    | "delay_reviewed"
   scheduledDate?: string
   scheduledTime?: string
   followUpNote?: string | null
+  /** delay_push / delay_reviewed */
+  adminNote?: string | null
+  /** delay_submitted */
+  delayReason?: string | null
+  requestedUntil?: string | null
+  /** delay_reviewed */
+  reviewDecision?: "approved" | "rejected"
+  approvedUntil?: string | null
+  reviewNote?: string | null
 }
 
 async function getDivisionRecipients(
@@ -144,6 +160,76 @@ function buildMessage(params: NotifyParams, stepName: string, divisionLabel: str
         url: projectUrl,
       }
     }
+    case "delay_push": {
+      const noteLine = params.adminNote
+        ? `<p><strong>Catatan admin:</strong> ${params.adminNote}</p>`
+        : ""
+      return {
+        subject: `[MGK] Minta response delay: ${params.projectName}`,
+        title: "Admin minta penjelasan delay",
+        body: `${params.projectName} — Step ${params.stepCode}: isi alasan delay & minta waktu sampai kapan`,
+        html: `
+          <p>Admin meminta response untuk step yang Delay.</p>
+          <p><strong>${params.projectName}</strong><br/>
+          Step ${params.stepCode}: ${stepName} (${divisionLabel})</p>
+          <p>Isi alasan delay dan minta waktu sampai kapan di My Tasks.</p>
+          ${noteLine}
+          <p><a href="${appUrl}/tasks">Buka My Tasks →</a></p>
+        `,
+        url: `${appUrl}/tasks`,
+      }
+    }
+    case "delay_submitted": {
+      const untilLabel = params.requestedUntil
+        ? formatDateKey(params.requestedUntil)
+        : "—"
+      const reasonLine = params.delayReason
+        ? `<p><strong>Alasan:</strong> ${params.delayReason}</p>`
+        : ""
+      return {
+        subject: `[MGK] Response delay: ${params.projectName}`,
+        title: "Divisi kirim alasan delay — perlu approve",
+        body: `${params.projectName} — Step ${params.stepCode}: minta sampai ${untilLabel}`,
+        html: `
+          <p>Divisi mengirim alasan delay dan minta perpanjangan waktu.</p>
+          <p><strong>${params.projectName}</strong><br/>
+          Step ${params.stepCode}: ${stepName} (${divisionLabel})<br/>
+          <strong>Minta sampai:</strong> ${untilLabel}</p>
+          ${reasonLine}
+          <p><a href="${appUrl}/tasks">Review di My Tasks →</a></p>
+        `,
+        url: `${appUrl}/tasks`,
+      }
+    }
+    case "delay_reviewed": {
+      const approved = params.reviewDecision === "approved"
+      const untilLabel = params.approvedUntil
+        ? formatDateKey(params.approvedUntil)
+        : ""
+      const noteLine = params.reviewNote
+        ? `<p><strong>Catatan admin:</strong> ${params.reviewNote}</p>`
+        : ""
+      return {
+        subject: approved
+          ? `[MGK] Perpanjangan disetujui: ${params.projectName}`
+          : `[MGK] Perpanjangan ditolak: ${params.projectName}`,
+        title: approved
+          ? "Perpanjangan waktu disetujui"
+          : "Perpanjangan waktu ditolak",
+        body: approved
+          ? `${params.projectName} — Step ${params.stepCode}: disetujui sampai ${untilLabel}`
+          : `${params.projectName} — Step ${params.stepCode}: perpanjangan ditolak`,
+        html: `
+          <p>${approved ? "Admin menyetujui perpanjangan waktu." : "Admin menolak perpanjangan waktu."}</p>
+          <p><strong>${params.projectName}</strong><br/>
+          Step ${params.stepCode}: ${stepName} (${divisionLabel})
+          ${approved && untilLabel ? `<br/><strong>Sampai:</strong> ${untilLabel}` : ""}</p>
+          ${noteLine}
+          <p><a href="${projectUrl}">Buka project →</a></p>
+        `,
+        url: projectUrl,
+      }
+    }
   }
 }
 
@@ -214,12 +300,71 @@ export async function notifyDivisionForStep(
 
   for (const channel of channels.length > 0 ? channels : ["skipped"]) {
     const logChannel =
-      params.type === "followup" ? "followup" : channel
+      params.type === "followup" ||
+      params.type === "delay_push" ||
+      params.type === "delay_submitted" ||
+      params.type === "delay_reviewed"
+        ? params.type
+        : channel
     await logReminder(supabase, params.projectId, params.stepCode, logChannel)
-    if (params.type === "followup") break
+    if (
+      params.type === "followup" ||
+      params.type === "delay_push" ||
+      params.type === "delay_submitted" ||
+      params.type === "delay_reviewed"
+    ) {
+      break
+    }
   }
 
   return { emailsSent, pushesSent }
+}
+
+export async function notifyAdminsDelaySubmitted(
+  params: Omit<NotifyParams, "type"> & {
+    delayReason?: string | null
+    requestedUntil?: string | null
+  }
+): Promise<void> {
+  const supabase = createServiceClient()
+  if (!supabase) return
+
+  const { data: admins } = await supabase
+    .from("profiles")
+    .select("id, email, notif_email, notif_push")
+    .eq("status", "active")
+    .or(
+      "division.eq.admin,division.eq.super_admin,divisions.cs.{admin},divisions.cs.{super_admin}"
+    )
+
+  const step = getStep(params.stepCode)
+  if (!step || !admins?.length) return
+
+  const message = buildMessage(
+    { ...params, type: "delay_submitted" },
+    step.name,
+    getDivisionLabel(step.division)
+  )
+
+  for (const admin of admins) {
+    if (admin.notif_email) {
+      await sendEmail({
+        to: admin.email,
+        subject: message.subject,
+        html: message.html,
+      })
+    }
+  }
+
+  const pushIds = admins.filter((a) => a.notif_push).map((a) => a.id)
+  const subs = await getPushSubscriptions(supabase, pushIds)
+  await sendPushToSubscriptions(subs, {
+    title: message.title,
+    body: message.body,
+    url: message.url,
+  })
+
+  await logReminder(supabase, params.projectId, params.stepCode, "delay_submitted")
 }
 
 export async function notifyAdminsHogger(
