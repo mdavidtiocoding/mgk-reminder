@@ -8,7 +8,6 @@ import { AppConfigForm } from "@/components/settings/app-config-form"
 import { resolveGoogleRedirectUri } from "@/lib/google/env"
 import { PushNotificationToggle } from "@/components/notifications/push-toggle"
 import { GoogleCalendarConnect } from "@/components/settings/google-calendar-connect"
-import { ThemePicker } from "@/components/auth/theme-picker"
 import { AppShell } from "@/components/layout/app-shell"
 import { Button } from "@/components/ui/button"
 import {
@@ -20,10 +19,8 @@ import {
 } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { getAppThresholds } from "@/lib/app-config"
-import { isDemoLoginMode } from "@/lib/app-login-mode.server"
 import { getPermissionContext } from "@/lib/auth/require-permission"
 import { isUserSuperAdmin } from "@/lib/auth/user-divisions"
-import { getUiTheme } from "@/lib/ui/theme.server"
 
 type SettingsPageProps = {
   searchParams: Promise<{ google?: string; msg?: string }>
@@ -48,8 +45,6 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   const thresholds = permissions.settings_app_config
     ? await getAppThresholds(supabase)
     : null
-  const demoMode = await isDemoLoginMode()
-  const theme = demoMode ? await getUiTheme() : null
   const showAdminSection =
     permissions.settings_app_config ||
     permissions.settings_users ||
@@ -67,21 +62,6 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
     >
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-6">
         <h2 className="text-base font-medium">Settings</h2>
-
-        {demoMode && theme && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Tampilan UI</CardTitle>
-              <CardDescription>
-                Mode Demo — pilih Classic atau Premium. Di Live, Classic
-                disembunyikan (selalu Premium).
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ThemePicker initialTheme={theme} />
-            </CardContent>
-          </Card>
-        )}
 
         <Card>
           <CardHeader>
