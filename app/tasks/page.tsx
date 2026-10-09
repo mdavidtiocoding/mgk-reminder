@@ -6,7 +6,11 @@ import { AppShell } from "@/components/layout/app-shell"
 import { OutstandingBadge } from "@/components/layout/outstanding-badge"
 import { UrlSearchInput } from "@/components/search/url-search-input"
 import { getMyTasks, type MyTask } from "@/lib/projects/tasks"
-import { isUserAdmin, resolveUserDivisions } from "@/lib/auth/user-divisions"
+import {
+  isUserAdmin,
+  isUserSuperAdmin,
+  resolveUserDivisions,
+} from "@/lib/auth/user-divisions"
 import { createClient } from "@/lib/supabase/server"
 
 type TaskGroup = {
@@ -62,6 +66,8 @@ export default async function MyTasksPage({
     .single()
 
   const userDivisions = resolveUserDivisions(profile)
+  const isSuperAdmin = isUserSuperAdmin(userDivisions)
+  const isAdminReviewer = isUserAdmin(userDivisions) && !isSuperAdmin
 
   let tasks: MyTask[] = []
   const { q } = await searchParams
@@ -88,9 +94,11 @@ export default async function MyTasksPage({
             <OutstandingBadge count={tasks.length} className="h-6 min-w-6 px-2 text-xs" />
           </div>
           <p className="text-sm text-muted-foreground">
-            {isUserAdmin(userDivisions)
-              ? "Admin hanya melihat step yang sudah lewat waktu respon (default 1×24 jam). Baru trigger belum Delay."
-              : "Step aktif yang menjadi tanggung jawab divisi kamu"}
+            {isSuperAdmin
+              ? "Super Admin — semua step aktif dari semua divisi. Bisa kerjakan langsung & kelola delay."
+              : isAdminReviewer
+                ? "Admin hanya melihat step yang sudah lewat waktu respon (default 1×24 jam). Baru trigger belum Delay."
+                : "Step aktif yang menjadi tanggung jawab divisi kamu"}
             {" · "}
             <span className="font-medium text-foreground">
               {tasks.length} outstanding
@@ -114,14 +122,14 @@ export default async function MyTasksPage({
         {groups.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
             <p className="text-sm font-medium">
-              {isUserAdmin(userDivisions)
-                ? "Tidak ada project delay"
-                : "Tidak ada task aktif"}
+              {isAdminReviewer ? "Tidak ada project delay" : "Tidak ada task aktif"}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              {isUserAdmin(userDivisions)
+              {isAdminReviewer
                 ? "Semua step aktif masih on-time. My Tasks admin hanya menampilkan yang sudah telat."
-                : "Semua step divisi kamu sudah selesai atau belum ada project aktif."}
+                : isSuperAdmin
+                  ? "Belum ada step aktif di project mana pun."
+                  : "Semua step divisi kamu sudah selesai atau belum ada project aktif."}
             </p>
           </div>
         ) : (

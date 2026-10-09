@@ -42,6 +42,7 @@ export function TaskCard({ task }: TaskCardProps) {
 
   const delayResponse = task.delayResponse
   const isAdminOnly = !task.canComplete && task.canFollowUp
+  const canManageDelay = task.canManageDelay
   const awaitingDivision = delayResponse?.status === "awaiting_division"
   const awaitingApproval = delayResponse?.status === "awaiting_approval"
 
@@ -92,7 +93,7 @@ export function TaskCard({ task }: TaskCardProps) {
         )}
         {awaitingDivision && (
           <p className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
-            {isAdminOnly
+            {canManageDelay && !task.canComplete
               ? "Menunggu response divisi (alasan delay + minta waktu)."
               : "Admin minta response: isi alasan delay & minta waktu sampai kapan."}
             {delayResponse.adminNote
@@ -152,7 +153,7 @@ export function TaskCard({ task }: TaskCardProps) {
               noteRouteTargets={task.noteRouteTargets}
             />
           )}
-          {isAdminOnly &&
+          {canManageDelay &&
             task.isDelayed &&
             !awaitingDivision &&
             !awaitingApproval && (
@@ -170,7 +171,7 @@ export function TaskCard({ task }: TaskCardProps) {
               adminNote={delayResponse?.adminNote}
             />
           )}
-          {isAdminOnly &&
+          {canManageDelay &&
             awaitingApproval &&
             delayResponse?.reason &&
             delayResponse.requestedUntil && (
@@ -182,7 +183,7 @@ export function TaskCard({ task }: TaskCardProps) {
                 requestedUntil={delayResponse.requestedUntil}
               />
             )}
-          {!task.canComplete && task.canFollowUp && (
+          {(isAdminOnly || canManageDelay) && (
             <SetFollowUpDialog
               projectId={task.projectId}
               stepCode={task.stepCode}

@@ -10,6 +10,7 @@ import {
   Menu,
   Plus,
   Settings,
+  TimerOff,
   X,
 } from "lucide-react"
 
@@ -35,23 +36,34 @@ type AppSidebarProps = {
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/tasks", label: "My Tasks", icon: ListTodo, exact: false },
+  {
+    href: "/delay-summary",
+    label: "Delay Summary",
+    icon: TimerOff,
+    exact: false,
+    superAdminOnly: true,
+  },
   { href: "/settings", label: "Settings", icon: Settings, exact: false },
 ] as const
 
 function NavLinks({
   pathname,
   outstandingCount,
+  isSuperAdmin = false,
   onNavigate,
   mobile = false,
 }: {
   pathname: string
   outstandingCount: number
+  isSuperAdmin?: boolean
   onNavigate?: () => void
   mobile?: boolean
 }) {
   return (
     <nav className="flex flex-col gap-1">
-      {NAV_ITEMS.map((item) => {
+      {NAV_ITEMS.filter(
+        (item) => !("superAdminOnly" in item) || isSuperAdmin
+      ).map((item) => {
         const active = item.exact
           ? pathname === item.href
           : pathname === item.href || pathname.startsWith(`${item.href}/`)
@@ -130,6 +142,7 @@ function SidebarPanel({
         <NavLinks
           pathname={pathname}
           outstandingCount={outstandingCount}
+          isSuperAdmin={divisionKeys.includes("super_admin")}
           onNavigate={onNavigate}
           mobile={mobile}
         />

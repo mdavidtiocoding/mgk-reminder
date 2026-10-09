@@ -48,6 +48,11 @@ export async function AppHeader({
             <OutstandingBadge count={outstandingCount ?? 0} />
           </Link>
         </Button>
+        {divisionKeys.includes("super_admin") && (
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/delay-summary">Delay Summary</Link>
+          </Button>
+        )}
         <Button variant="ghost" size="sm" asChild>
           <Link href="/settings">Settings</Link>
         </Button>

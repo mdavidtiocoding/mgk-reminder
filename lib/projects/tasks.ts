@@ -10,6 +10,7 @@ import {
 import { buildProjectSearchHaystack, matchesTokenSearch } from "@/lib/search/match"
 import {
   isUserAdmin,
+  isUserSuperAdmin,
   userCanWorkDivision,
   userHasDivision,
 } from "@/lib/auth/user-divisions"
@@ -83,6 +84,8 @@ export type MyTask = {
   delayThresholdHours: number
   canComplete: boolean
   canFollowUp: boolean
+  /** Admin / Super Admin: minta response delay & approve. */
+  canManageDelay: boolean
   /** Open delay-response thread (admin push → divisi → approve). */
   delayResponse?: DelayResponseRequest | null
   /** Approved grace deadline still in effect (YYYY-MM-DD). */
@@ -165,7 +168,9 @@ export async function getMyTasks(
     ])
 
   const tasks: MyTask[] = []
-  const adminView = isUserAdmin(userDivisions)
+  const canManageDelay = isUserAdmin(userDivisions)
+  // Admin biasa hanya review task Delay; Super Admin mengerjakan semua divisi.
+  const adminView = canManageDelay && !isUserSuperAdmin(userDivisions)
 
   for (const project of projectRows) {
     const completions: CompletionInfo[] = (project.step_completions ?? []).map((c) => ({
@@ -234,6 +239,7 @@ export async function getMyTasks(
         canFollowUp:
           isUserAdmin(userDivisions) ||
           userCanWorkDivision(userDivisions, step.division),
+        canManageDelay,
         delayResponse,
         approvedUntil,
         substeps: step.substeps,
@@ -310,6 +316,7 @@ export async function getMyTasks(
         canFollowUp:
           isUserAdmin(userDivisions) ||
           userCanWorkDivision(userDivisions, step.division),
+        canManageDelay,
         delayResponse: null,
         approvedUntil: null,
         substeps: step.substeps,

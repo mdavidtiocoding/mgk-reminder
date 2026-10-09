@@ -65,13 +65,14 @@ export function userHasDivision(
 
 /**
  * Boleh mengerjakan (tandai selesai) step divisi ini.
- * Admin / Super Admin tidak otomatis dianggap semua divisi —
- * mereka review & follow up; tim divisi yang kerjakan.
+ * Super Admin boleh mengerjakan semua divisi.
+ * Admin biasa tidak — review & follow up; tim divisi yang kerjakan.
  */
 export function userCanWorkDivision(
   userDivisions: Division[],
   target: Division
 ): boolean {
+  if (isUserSuperAdmin(userDivisions)) return true
   return userDivisions.includes(target)
 }
 
