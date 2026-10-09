@@ -303,6 +303,8 @@ export async function getProjectDetail(
     prerequisites: s.prerequisites,
   }))
 
+  const stepNameByCode = new Map(steps.map((s) => [s.code, s.name]))
+
   for (const timelineStep of steps) {
     timelineStep.flowWarnings = buildStepFlowWarnings(
       {
@@ -313,7 +315,10 @@ export async function getProjectDetail(
         substepCompletionCount: timelineStep.substepCompletions.length,
       },
       stepSnapshots
-    )
+    ).map((code) => {
+      const name = stepNameByCode.get(code)
+      return name ? `${code} (${name})` : code
+    })
   }
 
   const doneCount = steps.filter((s) => s.status === "done").length

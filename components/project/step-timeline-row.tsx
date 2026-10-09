@@ -195,7 +195,6 @@ function StepActiveBody({
 
   return (
     <div className={cn("space-y-3", compact ? "mt-2" : "mt-3")}>
-      {!compact && <StepFlowWarning codes={step.flowWarnings} />}
       {(step.incomingNotes?.length ?? 0) > 0 && (
         <IncomingStepNotes notes={step.incomingNotes ?? []} compact={compact} />
       )}
