@@ -46,6 +46,13 @@ export type UserRow = {
 
 const PROFILE_STATUSES: ProfileStatus[] = ["pending", "active", "suspended"]
 
+type UserEntryProps = {
+  user: UserRow
+  isSelf: boolean
+  canAssignSuperAdmin?: boolean
+  layout: "row" | "card"
+}
+
 export function UsersTable({
   users,
   currentUserId,
@@ -62,42 +69,53 @@ export function UsersTable({
   }
 
   return (
-    <div className="rounded-lg border">
-      <table className="w-full table-fixed text-sm">
-        <thead>
-          <tr className="border-b bg-muted/40 text-left">
-            <th className="w-[16%] px-3 py-2 font-medium">Nama</th>
-            <th className="w-[26%] px-3 py-2 font-medium">Email</th>
-            <th className="w-[18%] px-3 py-2 font-medium">Divisi</th>
-            <th className="w-[18%] px-3 py-2 font-medium">Status</th>
-            <th className="w-[12%] px-3 py-2 font-medium">Bergabung</th>
-            <th className="w-px whitespace-nowrap px-3 py-2 font-medium">Aksi</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((user) => (
-            <UserTableRow
-              key={user.id}
-              user={user}
-              isSelf={user.id === currentUserId}
-              canAssignSuperAdmin={canAssignSuperAdmin}
-            />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <div className="flex flex-col gap-2 md:hidden">
+        {users.map((user) => (
+          <UserEntry
+            key={user.id}
+            user={user}
+            isSelf={user.id === currentUserId}
+            canAssignSuperAdmin={canAssignSuperAdmin}
+            layout="card"
+          />
+        ))}
+      </div>
+      <div className="hidden rounded-lg border md:block">
+        <table className="w-full table-fixed text-sm">
+          <thead>
+            <tr className="border-b bg-muted/40 text-left">
+              <th className="w-[16%] px-3 py-2 font-medium">Nama</th>
+              <th className="w-[26%] px-3 py-2 font-medium">Email</th>
+              <th className="w-[18%] px-3 py-2 font-medium">Divisi</th>
+              <th className="w-[18%] px-3 py-2 font-medium">Status</th>
+              <th className="w-[12%] px-3 py-2 font-medium">Bergabung</th>
+              <th className="w-px whitespace-nowrap px-3 py-2 font-medium">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <UserEntry
+                key={user.id}
+                user={user}
+                isSelf={user.id === currentUserId}
+                canAssignSuperAdmin={canAssignSuperAdmin}
+                layout="row"
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   )
 }
 
-function UserTableRow({
+function UserEntry({
   user,
   isSelf,
   canAssignSuperAdmin = false,
-}: {
-  user: UserRow
-  isSelf: boolean
-  canAssignSuperAdmin?: boolean
-}) {
+  layout,
+}: UserEntryProps) {
   const router = useRouter()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
@@ -169,185 +187,218 @@ function UserTableRow({
     })
   }
 
-  return (
-    <tr className="border-b last:border-b-0">
-      <td className="px-3 py-2 font-medium">{user.name}</td>
-      <td className="truncate px-3 py-2 text-muted-foreground" title={user.email}>
-        {user.email}
-      </td>
-      <td className="px-3 py-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 max-w-[180px] justify-start truncate text-xs font-normal"
-          disabled={isPending}
-          onClick={openDivisionDialog}
-        >
-          {formatDivisionSelection(currentDivisions)}
-        </Button>
-        <Dialog open={divisionOpen} onOpenChange={setDivisionOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Divisi — {user.name}</DialogTitle>
-              <DialogDescription>
-                Satu user bisa punya lebih dari satu divisi (mis. Logistik + Finance).
-              </DialogDescription>
-            </DialogHeader>
-            <DivisionMultiSelect
-              value={draftDivisions}
-              onChange={setDraftDivisions}
-              disabled={isPending}
-              includeSuperAdmin={canAssignSuperAdmin}
-            />
-            {divisionError && (
-              <p className="text-sm text-destructive" role="alert">
-                {divisionError}
-              </p>
-            )}
-            <DialogFooter>
-              <Button
-                variant="outline"
-                disabled={isPending}
-                onClick={() => setDivisionOpen(false)}
-              >
-                Batal
-              </Button>
-              <Button disabled={isPending} onClick={handleSaveDivisions}>
-                {isPending ? "Menyimpan..." : "Simpan"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </td>
-      <td className="px-3 py-2">
-        {isSelf ? (
-          <span className="text-sm">{PROFILE_STATUS_LABELS[user.status]}</span>
-        ) : (
-          <Select
-            value={user.status}
-            onValueChange={(v) => handleStatusChange(v as ProfileStatus)}
+  const divisionControl = (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8 max-w-[180px] justify-start truncate text-xs font-normal"
+        disabled={isPending}
+        onClick={openDivisionDialog}
+      >
+        {formatDivisionSelection(currentDivisions)}
+      </Button>
+      <Dialog open={divisionOpen} onOpenChange={setDivisionOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Divisi — {user.name}</DialogTitle>
+            <DialogDescription>
+              Satu user bisa punya lebih dari satu divisi (mis. Logistik + Finance).
+            </DialogDescription>
+          </DialogHeader>
+          <DivisionMultiSelect
+            value={draftDivisions}
+            onChange={setDraftDivisions}
             disabled={isPending}
-          >
-            <SelectTrigger className="h-8 w-full max-w-[200px]" size="sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper" sideOffset={4} className="z-[100]">
-              {PROFILE_STATUSES.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {PROFILE_STATUS_LABELS[value]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </td>
-      <td className="px-3 py-2 text-muted-foreground">
-        {formatDate(user.created_at)}
-      </td>
-      <td className="whitespace-nowrap px-3 py-2">
-        <div className="flex flex-nowrap items-center gap-1.5">
+            includeSuperAdmin={canAssignSuperAdmin}
+          />
+          {divisionError && (
+            <p className="text-sm text-destructive" role="alert">
+              {divisionError}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={isPending}
+              onClick={() => setDivisionOpen(false)}
+            >
+              Batal
+            </Button>
+            <Button disabled={isPending} onClick={handleSaveDivisions}>
+              {isPending ? "Menyimpan..." : "Simpan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+
+  const statusControl = isSelf ? (
+    <span className="text-sm">{PROFILE_STATUS_LABELS[user.status]}</span>
+  ) : (
+    <Select
+      value={user.status}
+      onValueChange={(v) => handleStatusChange(v as ProfileStatus)}
+      disabled={isPending}
+    >
+      <SelectTrigger className="h-8 w-full max-w-[200px]" size="sm">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent position="popper" sideOffset={4} className="z-[100]">
+        {PROFILE_STATUSES.map((value) => (
+          <SelectItem key={value} value={value}>
+            {PROFILE_STATUS_LABELS[value]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+
+  const actions = (
+    <div className="flex flex-nowrap items-center gap-1.5">
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 shrink-0 px-2.5 text-xs"
+        disabled={isPending}
+        onClick={openEditDialog}
+      >
+        Edit
+      </Button>
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit user</DialogTitle>
+            <DialogDescription>
+              Ubah nama tampilan. Nama ini muncul di &quot;Selesai oleh&quot;
+              dan daftar user.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`edit-name-${layout}-${user.id}`}>Nama</Label>
+              <Input
+                id={`edit-name-${layout}-${user.id}`}
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                disabled={isPending}
+                maxLength={80}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">{user.email}</p>
+          </div>
+          {editError && (
+            <p className="text-sm text-destructive" role="alert">
+              {editError}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={isPending}
+              onClick={() => setEditOpen(false)}
+            >
+              Batal
+            </Button>
+            <Button disabled={isPending} onClick={handleSaveName}>
+              {isPending ? "Menyimpan..." : "Simpan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {!isSelf ? (
+        <>
           <Button
             size="sm"
-            variant="outline"
+            variant="destructive"
             className="h-7 shrink-0 px-2.5 text-xs"
             disabled={isPending}
-            onClick={openEditDialog}
+            onClick={() => {
+              setDeleteError(null)
+              setDeleteOpen(true)
+            }}
           >
-            Edit
+            Hapus
           </Button>
-          <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Edit user</DialogTitle>
+                <DialogTitle>Hapus user?</DialogTitle>
                 <DialogDescription>
-                  Ubah nama tampilan. Nama ini muncul di &quot;Selesai oleh&quot;
-                  dan daftar user.
+                  User <strong>{user.name}</strong> ({user.email}) akan
+                  dihapus permanen dari sistem. Tindakan ini tidak bisa
+                  dibatalkan.
                 </DialogDescription>
               </DialogHeader>
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor={`edit-name-${user.id}`}>Nama</Label>
-                  <Input
-                    id={`edit-name-${user.id}`}
-                    value={draftName}
-                    onChange={(e) => setDraftName(e.target.value)}
-                    disabled={isPending}
-                    maxLength={80}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">{user.email}</p>
-              </div>
-              {editError && (
+              {deleteError && (
                 <p className="text-sm text-destructive" role="alert">
-                  {editError}
+                  {deleteError}
                 </p>
               )}
               <DialogFooter>
                 <Button
                   variant="outline"
                   disabled={isPending}
-                  onClick={() => setEditOpen(false)}
+                  onClick={() => setDeleteOpen(false)}
                 >
                   Batal
                 </Button>
-                <Button disabled={isPending} onClick={handleSaveName}>
-                  {isPending ? "Menyimpan..." : "Simpan"}
+                <Button
+                  variant="destructive"
+                  disabled={isPending}
+                  onClick={handleDelete}
+                >
+                  {isPending ? "Menghapus..." : "Hapus user"}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          {!isSelf ? (
-            <>
-              <Button
-                size="sm"
-                variant="destructive"
-                className="h-7 shrink-0 px-2.5 text-xs"
-                disabled={isPending}
-                onClick={() => {
-                  setDeleteError(null)
-                  setDeleteOpen(true)
-                }}
-              >
-                Hapus
-              </Button>
-              <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Hapus user?</DialogTitle>
-                    <DialogDescription>
-                      User <strong>{user.name}</strong> ({user.email}) akan
-                      dihapus permanen dari sistem. Tindakan ini tidak bisa
-                      dibatalkan.
-                    </DialogDescription>
-                  </DialogHeader>
-                  {deleteError && (
-                    <p className="text-sm text-destructive" role="alert">
-                      {deleteError}
-                    </p>
-                  )}
-                  <DialogFooter>
-                    <Button
-                      variant="outline"
-                      disabled={isPending}
-                      onClick={() => setDeleteOpen(false)}
-                    >
-                      Batal
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      disabled={isPending}
-                      onClick={handleDelete}
-                    >
-                      {isPending ? "Menghapus..." : "Hapus user"}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </>
-          ) : null}
+        </>
+      ) : null}
+    </div>
+  )
+
+  if (layout === "card") {
+    return (
+      <div className="flex flex-col gap-2.5 rounded-lg border p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate font-medium">{user.name}</p>
+            <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+          </div>
+          {actions}
         </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="text-[11px] text-muted-foreground">Divisi</span>
+            {divisionControl}
+          </div>
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="text-[11px] text-muted-foreground">Status</span>
+            {statusControl}
+          </div>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Bergabung {formatDate(user.created_at)}
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <tr className="border-b last:border-b-0">
+      <td className="px-3 py-2 font-medium">{user.name}</td>
+      <td className="truncate px-3 py-2 text-muted-foreground" title={user.email}>
+        {user.email}
       </td>
+      <td className="px-3 py-2">{divisionControl}</td>
+      <td className="px-3 py-2">{statusControl}</td>
+      <td className="px-3 py-2 text-muted-foreground">
+        {formatDate(user.created_at)}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2">{actions}</td>
     </tr>
   )
 }

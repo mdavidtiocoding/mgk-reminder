@@ -39,6 +39,14 @@ const STATUS_STYLES: Record<DelaySummaryStatus, string> = {
   extended: "bg-emerald-100 text-emerald-800",
 }
 
+const SORT_OPTIONS: { value: `${SortKey}:${SortDir}`; label: string }[] = [
+  { value: "delay:desc", label: "Delay terlama" },
+  { value: "delay:asc", label: "Delay terbaru" },
+  { value: "project:asc", label: "Project A–Z" },
+  { value: "division:asc", label: "Divisi A–Z" },
+  { value: "step:asc", label: "Kode step" },
+]
+
 function compareRows(a: DelaySummaryRow, b: DelaySummaryRow, key: SortKey): number {
   switch (key) {
     case "delay":
@@ -50,6 +58,10 @@ function compareRows(a: DelaySummaryRow, b: DelaySummaryRow, key: SortKey): numb
     case "step":
       return a.stepCode.localeCompare(b.stepCode, "id", { numeric: true })
   }
+}
+
+function stepHref(row: DelaySummaryRow): string {
+  return `/projects/${row.projectId}?step=${encodeURIComponent(row.stepCode)}#step-${row.stepCode}`
 }
 
 function statusDetail(row: DelaySummaryRow): string | null {
@@ -169,7 +181,7 @@ export function DelaySummaryView({ rows }: { rows: DelaySummaryRow[] }) {
           className="h-8 w-full sm:w-64"
         />
         <Select value={division} onValueChange={(v) => setDivision(v as "all" | Division)}>
-          <SelectTrigger className="h-8 w-40">
+          <SelectTrigger className="h-8 flex-1 sm:w-40 sm:flex-none">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -185,7 +197,7 @@ export function DelaySummaryView({ rows }: { rows: DelaySummaryRow[] }) {
           value={status}
           onValueChange={(v) => setStatus(v as "all" | DelaySummaryStatus)}
         >
-          <SelectTrigger className="h-8 w-44">
+          <SelectTrigger className="h-8 flex-1 sm:w-44 sm:flex-none">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -193,6 +205,25 @@ export function DelaySummaryView({ rows }: { rows: DelaySummaryRow[] }) {
             {(Object.keys(STATUS_LABELS) as DelaySummaryStatus[]).map((s) => (
               <SelectItem key={s} value={s}>
                 {STATUS_LABELS[s]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={`${sortKey}:${sortDir}`}
+          onValueChange={(v) => {
+            const [key, dir] = v.split(":") as [SortKey, SortDir]
+            setSortKey(key)
+            setSortDir(dir)
+          }}
+        >
+          <SelectTrigger className="h-8 w-full md:hidden">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -209,7 +240,57 @@ export function DelaySummaryView({ rows }: { rows: DelaySummaryRow[] }) {
             : "Tidak ada yang cocok dengan filter."}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
+        <>
+        <ul className="flex flex-col gap-2 md:hidden">
+          {filtered.map((row) => {
+            const detail = statusDetail(row)
+            return (
+              <li key={`${row.projectId}-${row.stepCode}`}>
+                <Link
+                  href={stepHref(row)}
+                  className="flex flex-col gap-1.5 rounded-lg border p-3 active:bg-muted/40"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{row.projectName}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {row.customerName ?? "Tanpa customer"}
+                      </p>
+                    </div>
+                    {row.overdueHours > 0 && (
+                      <span className="shrink-0 text-sm font-semibold tabular-nums text-red-700">
+                        {formatDelayDuration(row.overdueHours)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="truncate text-xs">
+                    <span className="font-mono">{row.stepCode}</span> · {row.stepName}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <DivisionBadge division={row.division} label={row.divisionLabel} />
+                    <span
+                      className={cn(
+                        "rounded-md px-2 py-0.5 text-[11px] font-medium",
+                        STATUS_STYLES[row.status]
+                      )}
+                    >
+                      {STATUS_LABELS[row.status]}
+                    </span>
+                    {detail && (
+                      <span className="text-[11px] text-muted-foreground">{detail}</span>
+                    )}
+                  </div>
+                  {row.reason && (
+                    <p className="line-clamp-2 text-xs text-muted-foreground">
+                      Alasan: {row.reason}
+                    </p>
+                  )}
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+        <div className="hidden overflow-x-auto rounded-lg border md:block">
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-muted/50 text-xs text-muted-foreground">
               <tr>
@@ -227,7 +308,7 @@ export function DelaySummaryView({ rows }: { rows: DelaySummaryRow[] }) {
                   <tr key={`${row.projectId}-${row.stepCode}`} className="hover:bg-muted/30">
                     <td className="px-3 py-2">
                       <Link
-                        href={`/projects/${row.projectId}?step=${encodeURIComponent(row.stepCode)}#step-${row.stepCode}`}
+                        href={stepHref(row)}
                         className="font-medium hover:underline"
                       >
                         {row.projectName}
@@ -284,6 +365,7 @@ export function DelaySummaryView({ rows }: { rows: DelaySummaryRow[] }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   )
