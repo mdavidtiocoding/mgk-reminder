@@ -10,16 +10,15 @@ import {
   Settings,
 } from "lucide-react"
 
-import { OutstandingBadge } from "@/components/layout/outstanding-badge"
 import { cn } from "@/lib/utils"
 
 type BottomNavigationProps = {
-  outstandingCount?: number
+  tasksBadge?: React.ReactNode
   canCreateProject?: boolean
 }
 
 export function BottomNavigation({
-  outstandingCount = 0,
+  tasksBadge,
   canCreateProject = true,
 }: BottomNavigationProps) {
   const pathname = usePathname()
@@ -70,10 +69,8 @@ export function BottomNavigation({
             >
               <span className="relative">
                 <Icon className="size-5" aria-hidden />
-                {tab.href === "/tasks" && outstandingCount > 0 && (
-                  <span className="absolute -right-2.5 -top-1.5">
-                    <OutstandingBadge count={outstandingCount} />
-                  </span>
+                {tab.href === "/tasks" && tasksBadge && (
+                  <span className="absolute -right-2.5 -top-1.5">{tasksBadge}</span>
                 )}
               </span>
               {tab.label}

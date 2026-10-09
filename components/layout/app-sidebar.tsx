@@ -14,7 +14,6 @@ import {
   X,
 } from "lucide-react"
 
-import { OutstandingBadge } from "@/components/layout/outstanding-badge"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { getAppVariantBadgeLabel } from "@/lib/app-variant"
@@ -29,7 +28,7 @@ type AppSidebarProps = {
   userName: string
   division?: string | null
   userDivisions?: Division[]
-  outstandingCount: number
+  tasksBadge?: React.ReactNode
   canCreateProject?: boolean
 }
 
@@ -48,13 +47,13 @@ const NAV_ITEMS = [
 
 function NavLinks({
   pathname,
-  outstandingCount,
+  tasksBadge,
   isSuperAdmin = false,
   onNavigate,
   mobile = false,
 }: {
   pathname: string
-  outstandingCount: number
+  tasksBadge?: React.ReactNode
   isSuperAdmin?: boolean
   onNavigate?: () => void
   mobile?: boolean
@@ -86,9 +85,7 @@ function NavLinks({
             <Link href={item.href} onClick={onNavigate}>
               <Icon className="size-4 shrink-0" aria-hidden />
               <span className="flex-1 text-left">{item.label}</span>
-              {item.href === "/tasks" && (
-                <OutstandingBadge count={outstandingCount} />
-              )}
+              {item.href === "/tasks" && tasksBadge}
             </Link>
           </Button>
         )
@@ -102,7 +99,7 @@ function SidebarPanel({
   divisionKeys,
   variantBadge,
   pathname,
-  outstandingCount,
+  tasksBadge,
   canCreateProject = true,
   onNavigate,
   mobile = false,
@@ -111,7 +108,7 @@ function SidebarPanel({
   divisionKeys: Division[]
   variantBadge: string | null
   pathname: string
-  outstandingCount: number
+  tasksBadge?: React.ReactNode
   canCreateProject?: boolean
   onNavigate?: () => void
   mobile?: boolean
@@ -141,7 +138,7 @@ function SidebarPanel({
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2">
         <NavLinks
           pathname={pathname}
-          outstandingCount={outstandingCount}
+          tasksBadge={tasksBadge}
           isSuperAdmin={divisionKeys.includes("super_admin")}
           onNavigate={onNavigate}
           mobile={mobile}
@@ -205,7 +202,7 @@ export function AppSidebar({
   userName,
   division,
   userDivisions = [],
-  outstandingCount,
+  tasksBadge,
   canCreateProject = true,
 }: AppSidebarProps) {
   const pathname = usePathname()
@@ -227,7 +224,7 @@ export function AppSidebar({
     divisionKeys,
     variantBadge,
     pathname,
-    outstandingCount,
+    tasksBadge,
     canCreateProject,
   }
 

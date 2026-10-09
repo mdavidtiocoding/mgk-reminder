@@ -1,6 +1,5 @@
 import Link from "next/link"
 
-import { OutstandingBadge } from "@/components/layout/outstanding-badge"
 import { Button } from "@/components/ui/button"
 import { getDivisionLabel, type Division } from "@/lib/steps"
 
@@ -8,15 +7,14 @@ type AppHeaderProps = {
   userName: string
   division?: string | null
   userDivisions?: Division[]
-  /** Pass when the page already fetched tasks to avoid a duplicate query. */
-  outstandingCount?: number
+  tasksBadge?: React.ReactNode
 }
 
 export async function AppHeader({
   userName,
   division,
   userDivisions = [],
-  outstandingCount,
+  tasksBadge,
 }: AppHeaderProps) {
   const divisionKeys =
     userDivisions.length > 0
@@ -45,7 +43,7 @@ export async function AppHeader({
         <Button variant="ghost" size="sm" asChild>
           <Link href="/tasks" className="inline-flex items-center gap-2">
             My Tasks
-            <OutstandingBadge count={outstandingCount ?? 0} />
+            {tasksBadge}
           </Link>
         </Button>
         {divisionKeys.includes("super_admin") && (

@@ -1,9 +1,12 @@
+import { Suspense } from "react"
+
 import { AppHeader } from "@/components/layout/app-header"
 import { AppSidebar } from "@/components/layout/app-sidebar"
+import { AsyncOutstandingBadge } from "@/components/layout/async-outstanding-badge"
 import { BottomNavigation } from "@/components/layout/bottom-navigation"
+import { OutstandingBadge } from "@/components/layout/outstanding-badge"
 import { getRolePermissions, userHasPermission } from "@/lib/auth/permissions"
 import { getUiTheme } from "@/lib/ui/theme.server"
-import { getMyTasks } from "@/lib/projects/tasks"
 import { type Division } from "@/lib/steps"
 import { createClient } from "@/lib/supabase/server"
 
@@ -18,35 +21,30 @@ type AppShellProps = {
   children: React.ReactNode
 }
 
-async function fetchOutstandingCount(
-  userDivisions: Division[] = []
-): Promise<number> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) return 0
-
-  try {
-    const tasks = await getMyTasks(supabase, userDivisions)
-    return tasks.length
-  } catch {
-    return 0
+function tasksBadge(
+  userDivisions: Division[],
+  outstandingCount: number | undefined
+): React.ReactNode {
+  if (outstandingCount !== undefined) {
+    return <OutstandingBadge count={outstandingCount} />
   }
+  return (
+    <Suspense fallback={null}>
+      <AsyncOutstandingBadge userDivisions={userDivisions} />
+    </Suspense>
+  )
 }
 
 export async function AppShell({
   userName,
   division,
   userDivisions = [],
-  outstandingCount: outstandingCountProp,
+  outstandingCount,
   canCreateProject: canCreateProjectProp,
   children,
 }: AppShellProps) {
   const theme = await getUiTheme()
-  const outstandingCount =
-    outstandingCountProp ?? (await fetchOutstandingCount(userDivisions))
+  const badge = tasksBadge(userDivisions, outstandingCount)
 
   const canCreateProject =
     canCreateProjectProp ??
@@ -63,16 +61,13 @@ export async function AppShell({
           userName={userName}
           division={division}
           userDivisions={userDivisions}
-          outstandingCount={outstandingCount}
+          tasksBadge={badge}
           canCreateProject={canCreateProject}
         />
         <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
           {children}
         </div>
-        <BottomNavigation
-          outstandingCount={outstandingCount}
-          canCreateProject={canCreateProject}
-        />
+        <BottomNavigation tasksBadge={badge} canCreateProject={canCreateProject} />
       </div>
     )
   }
@@ -83,13 +78,10 @@ export async function AppShell({
         userName={userName}
         division={division}
         userDivisions={userDivisions}
-        outstandingCount={outstandingCount}
+        tasksBadge={badge}
       />
       {children}
-      <BottomNavigation
-        outstandingCount={outstandingCount}
-        canCreateProject={canCreateProject}
-      />
+      <BottomNavigation tasksBadge={badge} canCreateProject={canCreateProject} />
     </div>
   )
 }
