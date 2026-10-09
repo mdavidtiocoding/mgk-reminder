@@ -7,6 +7,7 @@ import {
   type PermissionKey,
   type RolePermissionsMatrix,
 } from "@/lib/auth/permissions"
+import { getSessionProfile, getSessionUser } from "@/lib/auth/session"
 import { resolveUserDivisions } from "@/lib/auth/user-divisions"
 import { type Division } from "@/lib/steps"
 import { createClient } from "@/lib/supabase/server"
@@ -30,23 +31,16 @@ export type PermissionContext = {
 }
 
 export async function getPermissionContext(): Promise<PermissionContext | null> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
+  const user = await getSessionUser()
   if (!user) return null
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select(
-      "name, division, divisions, email, status, notif_email, notif_push, google_calendar_connected"
-    )
-    .eq("id", user.id)
-    .single()
+  const supabase = await createClient()
+  const [profile, matrix] = await Promise.all([
+    getSessionProfile(user.id),
+    getRolePermissions(supabase),
+  ])
 
   const userDivisions = resolveUserDivisions(profile)
-  const matrix = await getRolePermissions(supabase)
 
   return {
     user,

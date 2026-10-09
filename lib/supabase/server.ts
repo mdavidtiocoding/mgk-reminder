@@ -1,9 +1,11 @@
+import { cache } from "react"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 
 import { getSupabaseEnv } from "./env"
 
-export async function createClient() {
+/** One client per request so `cache()`-keyed loaders dedupe across components. */
+export const createClient = cache(async () => {
   const cookieStore = await cookies()
   const { url, anonKey } = getSupabaseEnv()
 
@@ -23,4 +25,4 @@ export async function createClient() {
       },
     },
   })
-}
+})

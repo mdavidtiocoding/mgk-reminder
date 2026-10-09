@@ -1,23 +1,20 @@
 import { redirect } from "next/navigation"
 
+import { getSessionProfile, getSessionUser } from "@/lib/auth/session"
 import { isUserAdmin, resolveUserDivisions } from "@/lib/auth/user-divisions"
 import { createClient } from "@/lib/supabase/server"
 
 export async function requireAdmin() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getSessionUser()
 
   if (!user) {
     redirect("/login")
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("name, division, divisions, email, status")
-    .eq("id", user.id)
-    .single()
+  const [supabase, profile] = await Promise.all([
+    createClient(),
+    getSessionProfile(user.id),
+  ])
 
   const userDivisions = resolveUserDivisions(profile)
   if (!isUserAdmin(userDivisions) || profile?.status !== "active") {

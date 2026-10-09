@@ -1,3 +1,4 @@
+import { cache } from "react"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { DIVISION_LABELS, type Division } from "@/lib/steps"
@@ -160,23 +161,23 @@ export function normalizeRolePermissions(
   return result
 }
 
-export async function getRolePermissions(
-  supabase: SupabaseClient
-): Promise<RolePermissionsMatrix> {
-  const { data, error } = await supabase
-    .from("app_config")
-    .select("value")
-    .eq("key", APP_CONFIG_KEY)
-    .maybeSingle()
+export const getRolePermissions = cache(
+  async (supabase: SupabaseClient): Promise<RolePermissionsMatrix> => {
+    const { data, error } = await supabase
+      .from("app_config")
+      .select("value")
+      .eq("key", APP_CONFIG_KEY)
+      .maybeSingle()
 
-  if (error || !data?.value) return getDefaultRolePermissions()
+    if (error || !data?.value) return getDefaultRolePermissions()
 
-  try {
-    return normalizeRolePermissions(JSON.parse(data.value as string))
-  } catch {
-    return getDefaultRolePermissions()
+    try {
+      return normalizeRolePermissions(JSON.parse(data.value as string))
+    } catch {
+      return getDefaultRolePermissions()
+    }
   }
-}
+)
 
 /**
  * True if any of the user's roles grants the permission.

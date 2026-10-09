@@ -1,3 +1,4 @@
+import { cache } from "react"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { getAppThresholds } from "@/lib/app-config"
@@ -125,9 +126,31 @@ function isTaskForUser(
   return userHasDivision(userDivisions, stepDivision)
 }
 
-export async function getMyTasks(
+const getMyTasksCached = cache(
+  (supabase: SupabaseClient, divisionsKey: string, searchQuery: string) =>
+    loadMyTasks(
+      supabase,
+      (divisionsKey ? divisionsKey.split(",") : []) as Division[],
+      searchQuery || undefined
+    )
+)
+
+/** Deduped per request (badge + page share one load). */
+export function getMyTasks(
   supabase: SupabaseClient,
   userDivisions: Division[] = [],
+  searchQuery?: string
+): Promise<MyTask[]> {
+  return getMyTasksCached(
+    supabase,
+    [...userDivisions].sort().join(","),
+    searchQuery ?? ""
+  )
+}
+
+async function loadMyTasks(
+  supabase: SupabaseClient,
+  userDivisions: Division[],
   searchQuery?: string
 ): Promise<MyTask[]> {
   const [{ data, error }, thresholds, runtimeSteps] = await Promise.all([

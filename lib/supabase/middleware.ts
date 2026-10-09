@@ -30,9 +30,9 @@ export async function updateSession(request: NextRequest) {
     },
   })
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Local JWT verification (asymmetric signing keys) — no Auth round-trip.
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const user = claimsData?.claims?.sub ? { id: claimsData.claims.sub } : null
 
   const pathname = request.nextUrl.pathname
   const isAuthRoute =

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 
+import { getSessionProfile, getSessionUser } from "@/lib/auth/session"
 import {
   getPrimaryDivision,
   isUserAdmin,
@@ -9,20 +10,16 @@ import { createClient } from "@/lib/supabase/server"
 import type { Division } from "@/lib/steps"
 
 export async function getCurrentUserContext() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getSessionUser()
 
   if (!user) {
     redirect("/login")
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("name, email, division, divisions, status")
-    .eq("id", user.id)
-    .single()
+  const [supabase, profile] = await Promise.all([
+    createClient(),
+    getSessionProfile(user.id),
+  ])
 
   const userDivisions = resolveUserDivisions(profile)
   const primaryDivision =

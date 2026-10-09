@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import {
   LayoutDashboard,
   ListTodo,
@@ -215,9 +215,11 @@ export function AppSidebar({
         : []
   const variantBadge = getAppVariantBadgeLabel()
 
-  useEffect(() => {
+  const [openedAt, setOpenedAt] = useState(pathname)
+  if (openedAt !== pathname) {
+    setOpenedAt(pathname)
     setMobileOpen(false)
-  }, [pathname])
+  }
 
   const panelProps = {
     userName,

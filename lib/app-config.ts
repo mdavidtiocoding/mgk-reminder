@@ -1,3 +1,4 @@
+import { cache } from "react"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import {
@@ -24,21 +25,21 @@ function parsePositiveInt(value: string | null | undefined, fallback: number): n
   return !isNaN(n) && n >= 1 ? n : fallback
 }
 
-export async function getAppThresholds(
-  supabase: SupabaseClient
-): Promise<AppThresholds> {
-  const { data, error } = await supabase
-    .from("app_config")
-    .select("key, value")
-    .in("key", ["hogger_days", "warning_days", "delay_hours"])
+export const getAppThresholds = cache(
+  async (supabase: SupabaseClient): Promise<AppThresholds> => {
+    const { data, error } = await supabase
+      .from("app_config")
+      .select("key, value")
+      .in("key", ["hogger_days", "warning_days", "delay_hours"])
 
-  if (error || !data) return { ...DEFAULTS }
+    if (error || !data) return { ...DEFAULTS }
 
-  const map = new Map(data.map((row) => [row.key, row.value as string]))
+    const map = new Map(data.map((row) => [row.key, row.value as string]))
 
-  return {
-    hoggerDays: parsePositiveInt(map.get("hogger_days"), DEFAULTS.hoggerDays),
-    warningDays: parsePositiveInt(map.get("warning_days"), DEFAULTS.warningDays),
-    delayHours: parsePositiveInt(map.get("delay_hours"), DEFAULTS.delayHours),
+    return {
+      hoggerDays: parsePositiveInt(map.get("hogger_days"), DEFAULTS.hoggerDays),
+      warningDays: parsePositiveInt(map.get("warning_days"), DEFAULTS.warningDays),
+      delayHours: parsePositiveInt(map.get("delay_hours"), DEFAULTS.delayHours),
+    }
   }
-}
+)
