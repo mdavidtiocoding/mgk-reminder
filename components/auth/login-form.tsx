@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
+import { BrandMark } from "@/components/brand/brand-mark"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -48,6 +49,7 @@ export function LoginForm() {
     <div className="flex w-full max-w-sm flex-col gap-3">
       <Card className="w-full">
         <CardHeader>
+          <BrandMark className="mb-1 size-14 rounded-2xl" />
           <CardTitle>MGK Flow Reminder</CardTitle>
           <CardDescription>
             Masuk dengan email dan password perusahaan

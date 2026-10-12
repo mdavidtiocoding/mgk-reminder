@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react"
 
+import { BrandMark } from "@/components/brand/brand-mark"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { getAppVariantBadgeLabel } from "@/lib/app-variant"
@@ -121,9 +122,7 @@ function SidebarPanel({
           mobile && "pt-[max(1rem,env(safe-area-inset-top))]"
         )}
       >
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-          M
-        </div>
+        <BrandMark className="size-8 shrink-0 rounded-md" />
         <div className="min-w-0">
           <p className="truncate text-sm font-bold leading-tight">MGK</p>
           <p className="truncate text-xs text-muted-foreground">
@@ -239,9 +238,7 @@ export function AppSidebar({
         )}
       >
         <div className="flex min-w-0 items-center gap-2">
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
-            M
-          </div>
+          <BrandMark className="size-7 shrink-0 rounded-md" />
           <span className="truncate text-sm font-semibold">MGK Flow Reminder</span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">

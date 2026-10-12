@@ -2,19 +2,7 @@
 import { mkdir } from "node:fs/promises"
 import sharp from "sharp"
 
-const BRAND = "#2b4c93"
-
-function iconSvg(size, { maskable = false } = {}) {
-  const radius = maskable ? 0 : Math.round(size * 0.22)
-  const fontSize = Math.round(size * (maskable ? 0.42 : 0.52))
-  return `
-<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-  <rect width="${size}" height="${size}" rx="${radius}" fill="${BRAND}"/>
-  <text x="50%" y="50%" dy="0.35em" text-anchor="middle"
-    font-family="Arial, Helvetica, sans-serif" font-weight="700"
-    font-size="${fontSize}" fill="#ffffff">M</text>
-</svg>`
-}
+const SOURCE = "assets/reminder-icon.png"
 
 const outputs = [
   { file: "icon-192.png", size: 192 },
@@ -25,9 +13,29 @@ const outputs = [
 ]
 
 await mkdir("public/icons", { recursive: true })
+
 for (const { file, size, maskable } of outputs) {
-  await sharp(Buffer.from(iconSvg(size, { maskable })))
+  const pad = maskable ? Math.round(size * 0.08) : 0
+  const inner = size - pad * 2
+  const resized = await sharp(SOURCE)
+    .resize(inner, inner, {
+      fit: "contain",
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
+    })
+    .png()
+    .toBuffer()
+
+  await sharp({
+    create: {
+      width: size,
+      height: size,
+      channels: 4,
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
+    },
+  })
+    .composite([{ input: resized, left: pad, top: pad }])
     .png()
     .toFile(`public/icons/${file}`)
+
   console.log(`public/icons/${file}`)
 }
